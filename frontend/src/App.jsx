@@ -12,6 +12,7 @@ import Register from './pages/Register'
 import PatientDashboard from './pages/PatientDashboard'
 import DoctorDashboard from './pages/DoctorDashboard'
 import HospitalDashboard from './pages/HospitalDashboard'
+import StyleTest from './pages/StyleTest'
 import NotFound from './pages/NotFound'
 
 // Layouts
@@ -31,6 +32,7 @@ function App() {
               <Routes>
                 {/* Public routes */}
                 <Route path="/" element={<Home />} />
+                <Route path="/style-test" element={<StyleTest />} />
                 
                 {/* Auth routes */}
                 <Route path="/login" element={
