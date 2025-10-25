@@ -1,0 +1,272 @@
+/* Card component styles */
+
+.card {
+  @apply bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-soft hover:shadow-medium transition-all duration-300;
+}
+
+.card-header {
+  @apply px-6 py-4 border-b border-slate-200 dark:border-slate-700;
+}
+
+.card-body {
+  @apply px-6 py-4;
+}
+
+.card-footer {
+  @apply px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 rounded-b-xl;
+}
+
+/* Medical record card */
+.medical-record-card {
+  @apply card hover:scale-[1.02] hover:shadow-hard;
+}
+
+.medical-record-card .record-header {
+  @apply flex items-center justify-between;
+}
+
+.medical-record-card .record-title {
+  @apply text-lg font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.medical-record-card .record-date {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+.medical-record-card .record-status {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.medical-record-card .record-status.active {
+  @apply bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400;
+}
+
+.medical-record-card .record-status.pending {
+  @apply bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400;
+}
+
+.medical-record-card .record-status.archived {
+  @apply bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400;
+}
+
+/* Patient card */
+.patient-card {
+  @apply card cursor-pointer group;
+}
+
+.patient-card:hover {
+  @apply shadow-hard transform -translate-y-1;
+}
+
+.patient-card .patient-avatar {
+  @apply w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold;
+}
+
+.patient-card .patient-name {
+  @apply font-semibold text-slate-900 dark:text-slate-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors;
+}
+
+.patient-card .patient-id {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+.patient-card .patient-status {
+  @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium;
+}
+
+/* Doctor card */
+.doctor-card {
+  @apply card hover:shadow-medium transition-all duration-300;
+}
+
+.doctor-card .doctor-avatar {
+  @apply w-16 h-16 rounded-full bg-gradient-to-br from-medical-blue to-medical-purple flex items-center justify-center text-white font-bold text-lg;
+}
+
+.doctor-card .doctor-name {
+  @apply font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.doctor-card .doctor-specialty {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+.doctor-card .doctor-rating {
+  @apply flex items-center space-x-1;
+}
+
+/* Hospital card */
+.hospital-card {
+  @apply card hover:shadow-medium transition-all duration-300;
+}
+
+.hospital-card .hospital-logo {
+  @apply w-16 h-16 rounded-lg bg-gradient-to-br from-medical-teal to-medical-blue flex items-center justify-center text-white font-bold text-lg;
+}
+
+.hospital-card .hospital-name {
+  @apply font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.hospital-card .hospital-location {
+  @apply text-sm text-slate-500 dark:text-slate-400 flex items-center space-x-1;
+}
+
+/* Prescription card */
+.prescription-card {
+  @apply card border-l-4 border-l-medical-blue;
+}
+
+.prescription-card .prescription-header {
+  @apply flex items-center justify-between;
+}
+
+.prescription-card .prescription-title {
+  @apply font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.prescription-card .prescription-date {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+.prescription-card .medication-list {
+  @apply space-y-2;
+}
+
+.prescription-card .medication-item {
+  @apply flex items-center justify-between p-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg;
+}
+
+.prescription-card .medication-name {
+  @apply font-medium text-slate-900 dark:text-slate-100;
+}
+
+.prescription-card .medication-dosage {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+/* Statistics card */
+.stats-card {
+  @apply card text-center;
+}
+
+.stats-card .stats-icon {
+  @apply w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center;
+}
+
+.stats-card .stats-icon.primary {
+  @apply bg-primary-100 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400;
+}
+
+.stats-card .stats-icon.success {
+  @apply bg-success-100 text-success-600 dark:bg-success-900/20 dark:text-success-400;
+}
+
+.stats-card .stats-icon.warning {
+  @apply bg-warning-100 text-warning-600 dark:bg-warning-900/20 dark:text-warning-400;
+}
+
+.stats-card .stats-icon.error {
+  @apply bg-error-100 text-error-600 dark:bg-error-900/20 dark:text-error-400;
+}
+
+.stats-card .stats-value {
+  @apply text-2xl font-bold text-slate-900 dark:text-slate-100;
+}
+
+.stats-card .stats-label {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+.stats-card .stats-change {
+  @apply text-xs font-medium;
+}
+
+.stats-card .stats-change.positive {
+  @apply text-success-600 dark:text-success-400;
+}
+
+.stats-card .stats-change.negative {
+  @apply text-error-600 dark:text-error-400;
+}
+
+/* Notification card */
+.notification-card {
+  @apply card border-l-4;
+}
+
+.notification-card.info {
+  @apply border-l-primary-500 bg-primary-50 dark:bg-primary-900/10;
+}
+
+.notification-card.success {
+  @apply border-l-success-500 bg-success-50 dark:bg-success-900/10;
+}
+
+.notification-card.warning {
+  @apply border-l-warning-500 bg-warning-50 dark:bg-warning-900/10;
+}
+
+.notification-card.error {
+  @apply border-l-error-500 bg-error-50 dark:bg-error-900/10;
+}
+
+.notification-card .notification-icon {
+  @apply w-8 h-8 rounded-full flex items-center justify-center;
+}
+
+.notification-card .notification-title {
+  @apply font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.notification-card .notification-message {
+  @apply text-sm text-slate-600 dark:text-slate-300;
+}
+
+.notification-card .notification-time {
+  @apply text-xs text-slate-500 dark:text-slate-400;
+}
+
+/* Loading card */
+.loading-card {
+  @apply card animate-pulse;
+}
+
+.loading-card .loading-header {
+  @apply h-4 bg-slate-200 dark:bg-slate-700 rounded mb-3;
+}
+
+.loading-card .loading-content {
+  @apply space-y-2;
+}
+
+.loading-card .loading-line {
+  @apply h-3 bg-slate-200 dark:bg-slate-700 rounded;
+}
+
+.loading-card .loading-line.short {
+  @apply w-3/4;
+}
+
+.loading-card .loading-line.medium {
+  @apply w-1/2;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .card {
+    @apply mx-2;
+  }
+  
+  .card-header,
+  .card-body,
+  .card-footer {
+    @apply px-4 py-3;
+  }
+  
+  .patient-card .patient-avatar,
+  .doctor-card .doctor-avatar,
+  .hospital-card .hospital-logo {
+    @apply w-10 h-10 text-sm;
+  }
+}

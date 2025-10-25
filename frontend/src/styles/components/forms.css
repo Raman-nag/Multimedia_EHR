@@ -1,0 +1,314 @@
+/* Form component styles */
+
+/* Form container */
+.form-container {
+  @apply max-w-2xl mx-auto p-6 bg-white dark:bg-slate-800 rounded-xl shadow-soft border border-slate-200 dark:border-slate-700;
+}
+
+.form-container .form-header {
+  @apply mb-6 text-center;
+}
+
+.form-container .form-title {
+  @apply text-2xl font-bold text-slate-900 dark:text-slate-100 mb-2;
+}
+
+.form-container .form-subtitle {
+  @apply text-slate-500 dark:text-slate-400;
+}
+
+/* Form sections */
+.form-section {
+  @apply space-y-6;
+}
+
+.form-section .section-title {
+  @apply text-lg font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 pb-2;
+}
+
+.form-section .section-content {
+  @apply space-y-4;
+}
+
+/* Form groups */
+.form-group {
+  @apply space-y-2;
+}
+
+.form-group .form-label {
+  @apply block text-sm font-medium text-slate-700 dark:text-slate-300;
+}
+
+.form-group .form-label.required::after {
+  @apply text-error-500 ml-1;
+  content: '*';
+}
+
+.form-group .form-label.optional::after {
+  @apply text-slate-400 dark:text-slate-500 ml-1 text-xs;
+  content: '(optional)';
+}
+
+/* Input styles */
+.form-input {
+  @apply w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors;
+}
+
+.form-input:disabled {
+  @apply bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed;
+}
+
+.form-input.error {
+  @apply border-error-500 focus:ring-error-500 focus:border-error-500;
+}
+
+.form-input.success {
+  @apply border-success-500 focus:ring-success-500 focus:border-success-500;
+}
+
+/* Textarea styles */
+.form-textarea {
+  @apply form-input resize-vertical min-h-[100px];
+}
+
+/* Select styles */
+.form-select {
+  @apply form-input appearance-none bg-no-repeat bg-right pr-10;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-size: 1.5em 1.5em;
+}
+
+/* Checkbox and radio styles */
+.form-checkbox,
+.form-radio {
+  @apply w-4 h-4 text-primary-600 bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-primary-500 focus:ring-2;
+}
+
+.form-radio {
+  @apply rounded-full;
+}
+
+.form-checkbox:checked,
+.form-radio:checked {
+  @apply bg-primary-600 border-primary-600;
+}
+
+/* Switch styles */
+.form-switch {
+  @apply relative inline-flex h-6 w-11 items-center rounded-full bg-slate-200 dark:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+}
+
+.form-switch.checked {
+  @apply bg-primary-600;
+}
+
+.form-switch .switch-thumb {
+  @apply inline-block h-4 w-4 transform rounded-full bg-white transition-transform;
+}
+
+.form-switch.checked .switch-thumb {
+  @apply translate-x-6;
+}
+
+/* File input styles */
+.form-file {
+  @apply block w-full text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100 dark:file:bg-primary-900/20 dark:file:text-primary-400;
+}
+
+/* Form validation */
+.form-error {
+  @apply text-sm text-error-600 dark:text-error-400 flex items-center space-x-1;
+}
+
+.form-success {
+  @apply text-sm text-success-600 dark:text-success-400 flex items-center space-x-1;
+}
+
+.form-help {
+  @apply text-sm text-slate-500 dark:text-slate-400;
+}
+
+/* Form actions */
+.form-actions {
+  @apply flex items-center justify-end space-x-3 pt-6 border-t border-slate-200 dark:border-slate-700;
+}
+
+.form-actions .form-button {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+}
+
+.form-actions .form-button.primary {
+  @apply bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500;
+}
+
+.form-actions .form-button.secondary {
+  @apply bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100 hover:bg-slate-300 dark:hover:bg-slate-600 focus:ring-slate-500;
+}
+
+.form-actions .form-button.danger {
+  @apply bg-error-600 text-white hover:bg-error-700 focus:ring-error-500;
+}
+
+.form-actions .form-button:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+/* Medical form specific styles */
+.medical-form {
+  @apply form-container;
+}
+
+.medical-form .patient-info {
+  @apply bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 mb-6;
+}
+
+.medical-form .patient-info .patient-name {
+  @apply font-semibold text-slate-900 dark:text-slate-100;
+}
+
+.medical-form .patient-info .patient-details {
+  @apply text-sm text-slate-500 dark:text-slate-400 space-y-1;
+}
+
+.medical-form .vital-signs {
+  @apply grid grid-cols-2 md:grid-cols-4 gap-4;
+}
+
+.medical-form .vital-sign .vital-label {
+  @apply text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide;
+}
+
+.medical-form .vital-sign .vital-input {
+  @apply form-input text-center font-mono;
+}
+
+.medical-form .symptoms {
+  @apply space-y-3;
+}
+
+.medical-form .symptom-item {
+  @apply flex items-center space-x-3 p-3 border border-slate-200 dark:border-slate-700 rounded-lg;
+}
+
+.medical-form .symptom-checkbox {
+  @apply form-checkbox;
+}
+
+.medical-form .symptom-label {
+  @apply flex-1 text-slate-900 dark:text-slate-100;
+}
+
+.medical-form .symptom-severity {
+  @apply form-select w-24;
+}
+
+/* Prescription form */
+.prescription-form {
+  @apply form-container;
+}
+
+.prescription-form .medication-list {
+  @apply space-y-4;
+}
+
+.prescription-form .medication-item {
+  @apply p-4 border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-700/50;
+}
+
+.prescription-form .medication-header {
+  @apply flex items-center justify-between mb-3;
+}
+
+.prescription-form .medication-name {
+  @apply font-medium text-slate-900 dark:text-slate-100;
+}
+
+.prescription-form .remove-medication {
+  @apply text-error-500 hover:text-error-700 dark:hover:text-error-400;
+}
+
+.prescription-form .medication-fields {
+  @apply grid grid-cols-1 md:grid-cols-3 gap-4;
+}
+
+.prescription-form .add-medication {
+  @apply w-full p-4 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-center text-slate-500 dark:text-slate-400 hover:border-primary-500 hover:text-primary-600 dark:hover:text-primary-400 transition-colors cursor-pointer;
+}
+
+/* Search form */
+.search-form {
+  @apply relative;
+}
+
+.search-form .search-input {
+  @apply form-input pl-10 pr-4;
+}
+
+.search-form .search-icon {
+  @apply absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400;
+}
+
+.search-form .search-results {
+  @apply absolute top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto;
+}
+
+.search-form .search-result {
+  @apply p-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-200 dark:border-slate-700 last:border-b-0;
+}
+
+.search-form .search-result:last-child {
+  @apply border-b-0;
+}
+
+/* Filter form */
+.filter-form {
+  @apply bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4;
+}
+
+.filter-form .filter-group {
+  @apply space-y-3;
+}
+
+.filter-form .filter-label {
+  @apply text-sm font-medium text-slate-700 dark:text-slate-300;
+}
+
+.filter-form .filter-options {
+  @apply space-y-2;
+}
+
+.filter-form .filter-option {
+  @apply flex items-center space-x-2;
+}
+
+.filter-form .filter-checkbox {
+  @apply form-checkbox;
+}
+
+.filter-form .filter-label-text {
+  @apply text-sm text-slate-600 dark:text-slate-300;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .form-container {
+    @apply mx-4 p-4;
+  }
+  
+  .form-actions {
+    @apply flex-col space-x-0 space-y-3;
+  }
+  
+  .form-actions .form-button {
+    @apply w-full;
+  }
+  
+  .medical-form .vital-signs {
+    @apply grid-cols-2 gap-3;
+  }
+  
+  .prescription-form .medication-fields {
+    @apply grid-cols-1;
+  }
+}
