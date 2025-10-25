@@ -97,9 +97,9 @@ const SearchBar = ({
   };
 
   const variants = {
-    default: 'bg-white border border-gray-300 focus:border-blue-500 focus:ring-blue-500',
-    filled: 'bg-gray-100 border border-gray-300 focus:bg-white focus:border-blue-500 focus:ring-blue-500',
-    outline: 'bg-transparent border-2 border-gray-300 focus:border-blue-500 focus:ring-blue-500',
+    default: 'bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 focus:border-primary-500 focus:ring-primary-500',
+    filled: 'bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 focus:bg-white dark:focus:bg-slate-800 focus:border-primary-500 focus:ring-primary-500',
+    outline: 'bg-transparent border-2 border-slate-300 dark:border-slate-600 focus:border-primary-500 focus:ring-primary-500',
     glassmorphism: 'bg-white/20 backdrop-blur-md border border-white/30 focus:bg-white/30 focus:border-white/50'
   };
 
@@ -109,7 +109,7 @@ const SearchBar = ({
       <div className="relative">
         {showSearchIcon && (
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            <MagnifyingGlassIcon className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
         )}
         
@@ -135,7 +135,7 @@ const SearchBar = ({
           <button
             type="button"
             onClick={handleClear}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <XMarkIcon className="h-4 w-4" />
           </button>
@@ -144,16 +144,16 @@ const SearchBar = ({
 
       {/* Suggestions Dropdown */}
       {showSuggestions && isFocused && filteredSuggestions.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-auto">
           {filteredSuggestions.map((suggestion, index) => (
             <button
               key={index}
               type="button"
               onClick={() => handleSuggestionClick(suggestion)}
-              className="w-full px-4 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 hover:bg-blue-50 transition-colors first:rounded-t-lg last:rounded-b-lg"
+              className="w-full px-4 py-2 text-left text-sm text-slate-900 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
             >
               <div className="flex items-center">
-                <MagnifyingGlassIcon className="h-4 w-4 text-gray-400 mr-3" />
+                <MagnifyingGlassIcon className="h-4 w-4 text-slate-400 dark:text-slate-500 mr-3" />
                 <span>{suggestion}</span>
               </div>
             </button>
@@ -205,7 +205,7 @@ const MedicalSearchBar = ({
     <div className={`relative ${className}`}>
       <div className="flex items-center mb-2">
         <span className="text-lg mr-2">{config.icon}</span>
-        <span className="text-sm font-medium text-gray-700 capitalize">
+        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
           {type} Search
         </span>
       </div>
@@ -262,7 +262,7 @@ const AdvancedSearchBar = ({
             <button
               type="button"
               onClick={clearFilters}
-              className="text-sm text-gray-600 hover:text-gray-800"
+              className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
             >
               Clear Filters
             </button>
@@ -271,17 +271,17 @@ const AdvancedSearchBar = ({
       )}
 
       {showFilters && filters.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
           {filters.map((filter) => (
             <div key={filter.key}>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                 {filter.label}
               </label>
               {filter.type === 'select' ? (
                 <select
                   value={activeFilters[filter.key] || ''}
                   onChange={(e) => handleFilterChange(filter.key, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 >
                   <option value="">All</option>
                   {filter.options.map((option) => (
@@ -296,7 +296,7 @@ const AdvancedSearchBar = ({
                   value={activeFilters[filter.key] || ''}
                   onChange={(e) => handleFilterChange(filter.key, e.target.value)}
                   placeholder={filter.placeholder}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 />
               )}
             </div>
