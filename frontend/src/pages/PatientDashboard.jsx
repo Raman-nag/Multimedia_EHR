@@ -1,5 +1,4 @@
-import React from 'react';
-import DashboardLayout from '../components/layout/DashboardLayout';
+import React, { useState, useEffect } from 'react';
 import { 
   HeartIcon, 
   DocumentTextIcon,
@@ -9,53 +8,74 @@ import {
   PlusIcon,
   ArrowRightIcon,
   ShieldCheckIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  EyeIcon,
+  ShareIcon,
+  CheckCircleIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
+import { mockUsers, mockMedicalRecords, mockNotifications, mockStats } from '../data/mockData';
 
 const PatientDashboard = () => {
-  // Mock data for demonstration
-  const userProfile = {
-    firstName: 'John',
-    lastName: 'Doe',
-    role: 'Patient',
-    dateOfBirth: '1985-06-15'
-  };
-  
-  const walletAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-  const networkStatus = 'connected';
+  const [userProfile, setUserProfile] = useState(mockUsers.patient);
+  const [walletAddress, setWalletAddress] = useState(mockUsers.patient.walletAddress);
+  const [networkStatus, setNetworkStatus] = useState('connected');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // TODO: Load user data from blockchain
+    // This is mock data for demonstration
+    const loadUserData = async () => {
+      setIsLoading(true);
+      try {
+        // TODO: Fetch user data from blockchain contract
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+        setUserProfile(mockUsers.patient);
+        setWalletAddress(mockUsers.patient.walletAddress);
+        setNetworkStatus('connected');
+      } catch (error) {
+        console.error('Failed to load user data:', error);
+        setNetworkStatus('disconnected');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadUserData();
+  }, []);
 
   const stats = [
     {
       name: 'Medical Records',
-      value: '12',
-      change: '+2 this month',
+      value: mockStats.patient.totalRecords.toString(),
+      change: `+${Math.floor(Math.random() * 5)} this month`,
       icon: DocumentTextIcon,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100'
+      color: 'text-primary-600 dark:text-primary-400',
+      bgColor: 'bg-primary-100 dark:bg-primary-900/20'
     },
     {
       name: 'Active Prescriptions',
-      value: '3',
-      change: '2 expiring soon',
+      value: mockStats.patient.activePrescriptions.toString(),
+      change: `${Math.floor(Math.random() * 3)} expiring soon`,
       icon: ClipboardDocumentListIcon,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100'
+      color: 'text-success-600 dark:text-success-400',
+      bgColor: 'bg-success-100 dark:bg-success-900/20'
     },
     {
       name: 'Upcoming Appointments',
-      value: '2',
+      value: mockStats.patient.upcomingAppointments.toString(),
       change: 'Next: Tomorrow',
       icon: CalendarIcon,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100'
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-100 dark:bg-purple-900/20'
     },
     {
       name: 'Access Granted',
       value: '5',
       change: 'Healthcare providers',
       icon: KeyIcon,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100'
+      color: 'text-warning-600 dark:text-warning-400',
+      bgColor: 'bg-warning-100 dark:bg-warning-900/20'
     }
   ];
 
@@ -122,6 +142,24 @@ const PatientDashboard = () => {
     }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <HeartIcon className="w-8 h-8 text-white" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2">
+            Loading Your Dashboard
+          </h2>
+          <p className="text-slate-600 dark:text-slate-400">
+            Fetching your medical records from blockchain...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <DashboardLayout 
       userRole="patient" 
@@ -131,15 +169,18 @@ const PatientDashboard = () => {
     >
       <div className="space-y-6">
         {/* Welcome Section */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg p-6 text-white">
+        <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Patient Dashboard</h1>
-              <p className="mt-2 text-purple-100">
+              <h1 className="text-2xl font-bold">Welcome back, {userProfile.firstName}!</h1>
+              <p className="mt-2 text-primary-100">
                 Access your secure medical records and manage your health data
               </p>
+              <div className="mt-3 text-sm text-primary-100">
+                Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              </div>
             </div>
-            <div className="bg-white bg-opacity-20 rounded-full p-4">
+            <div className="bg-white/20 rounded-full p-4">
               <HeartIcon className="h-12 w-12" />
             </div>
           </div>
@@ -150,15 +191,15 @@ const PatientDashboard = () => {
           {stats.map((stat) => {
             const IconComponent = stat.icon;
             return (
-              <div key={stat.name} className="bg-white rounded-lg shadow p-6">
+              <div key={stat.name} className="bg-white dark:bg-slate-800 rounded-xl shadow-soft border border-slate-200 dark:border-slate-700 p-6 hover:shadow-medium transition-all duration-300">
                 <div className="flex items-center">
-                  <div className={`p-3 rounded-lg ${stat.bgColor}`}>
+                  <div className={`p-3 rounded-xl ${stat.bgColor}`}>
                     <IconComponent className={`h-6 w-6 ${stat.color}`} />
                   </div>
                   <div className="ml-4">
-                    <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                    <p className="text-sm text-gray-500">{stat.change}</p>
+                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.name}</p>
+                    <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{stat.value}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{stat.change}</p>
                   </div>
                 </div>
               </div>
