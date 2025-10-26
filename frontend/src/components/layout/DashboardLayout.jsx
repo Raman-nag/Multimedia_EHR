@@ -12,6 +12,7 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import ThemeToggle from '../common/ThemeToggle';
+import WalletConnection from '../wallet/WalletConnection';
 
 const DashboardLayout = ({ children, userRole, userProfile, walletAddress, networkStatus }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -220,13 +221,18 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
             </div>
             
             <div className="ml-4 flex items-center md:ml-6">
+              {/* Wallet Connection */}
+              <div className="flex items-center mr-4">
+                <WalletConnection />
+              </div>
+
               {/* Theme Toggle */}
               <div className="flex items-center mr-4">
                 <ThemeToggle variant="button" size="md" />
               </div>
 
-              {/* Network Status */}
-              <div className="flex items-center mr-4">
+              {/* Network Status - Hidden when wallet is connected (wallet shows this) */}
+              <div className="hidden items-center mr-4">
                 <div className={`flex items-center ${getNetworkStatusColor()}`}>
                   {getNetworkStatusIcon()}
                   <span className="ml-1 text-sm font-medium capitalize">

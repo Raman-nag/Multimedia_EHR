@@ -8,6 +8,7 @@ import {
   LockClosedIcon
 } from '@heroicons/react/24/outline';
 import ThemeToggle from '../common/ThemeToggle';
+import WalletConnection from '../wallet/WalletConnection';
 
 const PublicLayout = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -60,6 +61,7 @@ const PublicLayout = ({ children }) => {
 
             {/* Right side buttons */}
             <div className="hidden md:flex items-center space-x-4">
+              <WalletConnection />
               <ThemeToggle variant="button" size="md" />
               <Link
                 to="/login"
@@ -77,6 +79,7 @@ const PublicLayout = ({ children }) => {
 
             {/* Mobile menu button */}
             <div className="md:hidden flex items-center space-x-2">
+              <WalletConnection />
               <ThemeToggle variant="button" size="sm" />
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
