@@ -11,6 +11,7 @@ import {
   BuildingOfficeIcon,
   UserGroupIcon
 } from '@heroicons/react/24/outline';
+import { findMockUserByEmail } from '../utils/mockDataHelpers';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -121,14 +122,16 @@ const Register = () => {
       // This is mock registration for demonstration
       await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
       
-      // TODO: Create blockchain wallet and store user data
+      // Find mock user data based on email and role
+      const mockUser = findMockUserByEmail(formData.email, formData.role);
+      
+      if (!mockUser) {
+        throw new Error('No matching mock user found. Please use a pre-configured email address.');
+      }
+
+      // Create user data from mock data
       const userData = {
-        id: `${formData.role}_${Date.now()}`,
-        ...formData,
-        // TODO: Generate blockchain wallet address
-        walletAddress: `0x${Math.random().toString(16).substr(2, 40)}`,
-        // TODO: Store user data hash on IPFS
-        ipfsHash: `QmHash${Math.random().toString(16).substr(2, 8)}...`,
+        ...mockUser,
         registeredAt: new Date().toISOString()
       };
 
@@ -139,7 +142,11 @@ const Register = () => {
   // Navigate to appropriate dashboard (route pattern: /<role>/dashboard)
   navigate(`/${formData.role}/dashboard`);
     } catch (err) {
-      setErrors({ general: 'Registration failed. Please try again.' });
+      setErrors({ 
+        general: err.message === 'No matching mock user found. Please use a pre-configured email address.' 
+          ? 'Please use one of the following test emails:\n- Patient: john.doe@email.com\n- Doctor: sarah.johnson@citygeneral.com\n- Hospital: admin@citygeneral.com'
+          : 'Registration failed. Please try again.' 
+      });
     } finally {
       setIsLoading(false);
     }
