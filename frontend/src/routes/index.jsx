@@ -21,6 +21,10 @@ const Home = lazy(() => import('../pages/Home'));
 const Login = lazy(() => import('../pages/Login'));
 const Register = lazy(() => import('../pages/Register'));
 const HospitalDashboard = lazy(() => import('../pages/HospitalDashboard'));
+const AddDoctor = lazy(() => import('../pages/hospital/AddDoctorPage'));
+const DoctorList = lazy(() => import('../components/hospital/DoctorList'));
+const PatientList = lazy(() => import('../components/hospital/PatientList'));
+const HospitalAnalytics = lazy(() => import('../pages/HospitalAnalytics'));
 const DoctorDashboard = lazy(() => import('../pages/DoctorDashboard'));
 const PatientDashboard = lazy(() => import('../pages/PatientDashboard'));
 const NotFound = lazy(() => import('../pages/NotFound'));
@@ -87,6 +91,47 @@ const AppRouter = () => {
                       </RouteWrapper>
                     </DashboardLayout>
                   } 
+                />
+                {/* Hospital subpages */}
+                <Route
+                  path="/hospital/add-doctor"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <AddDoctor />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/hospital/doctors"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <DoctorList />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/hospital/patients"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <PatientList />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/hospital/analytics"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <HospitalAnalytics />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
                 />
                 <Route 
                   path="/doctor/dashboard" 
