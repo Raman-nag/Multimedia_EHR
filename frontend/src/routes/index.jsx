@@ -26,6 +26,10 @@ const DoctorList = lazy(() => import('../components/hospital/DoctorList'));
 const PatientList = lazy(() => import('../components/hospital/PatientList'));
 const HospitalAnalytics = lazy(() => import('../pages/HospitalAnalytics'));
 const DoctorDashboard = lazy(() => import('../pages/DoctorDashboard'));
+const CreateRecordPage = lazy(() => import('../pages/doctor/CreateRecordPage'));
+const MyPatients = lazy(() => import('../components/doctor/MyPatients'));
+const PrescriptionForm = lazy(() => import('../components/doctor/PrescriptionForm'));
+const ViewPatientHistory = lazy(() => import('../components/doctor/ViewPatientHistory'));
 const PatientDashboard = lazy(() => import('../pages/PatientDashboard'));
 const NotFound = lazy(() => import('../pages/NotFound'));
 
@@ -142,6 +146,55 @@ const AppRouter = () => {
                       </RouteWrapper>
                     </DashboardLayout>
                   } 
+                />
+                {/* Doctor subpages */}
+                <Route 
+                  path="/doctor/create-record" 
+                  element={
+                    <RouteWrapper>
+                      <CreateRecordPage />
+                    </RouteWrapper>
+                  }
+                />
+                <Route
+                  path="/doctor/create-record"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <CreateRecord />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/doctor/my-patients"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <MyPatients />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/doctor/write-prescription"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <PrescriptionForm />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
+                />
+                <Route
+                  path="/doctor/patient-history/:patientId"
+                  element={
+                    <DashboardLayout>
+                      <RouteWrapper>
+                        <ViewPatientHistory />
+                      </RouteWrapper>
+                    </DashboardLayout>
+                  }
                 />
                 <Route 
                   path="/patient/dashboard" 

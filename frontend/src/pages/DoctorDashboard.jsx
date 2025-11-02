@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { 
   UserIcon, 
@@ -12,6 +13,8 @@ import {
 } from '@heroicons/react/24/outline';
 
 const DoctorDashboard = () => {
+  const navigate = useNavigate();
+  
   // Mock data for demonstration
   const userProfile = {
     firstName: 'Dr. Sarah',
@@ -158,7 +161,10 @@ const DoctorDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => navigate('/doctor/create-record')}
+                  className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <div className="bg-green-100 p-3 rounded-lg mr-4">
                     <PlusIcon className="h-6 w-6 text-green-600" />
                   </div>
@@ -169,7 +175,10 @@ const DoctorDashboard = () => {
                   <ArrowRightIcon className="h-5 w-5 text-gray-400" />
                 </button>
 
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => navigate('/doctor/my-patients')}
+                  className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <div className="bg-blue-100 p-3 rounded-lg mr-4">
                     <HeartIcon className="h-6 w-6 text-blue-600" />
                   </div>
@@ -180,7 +189,10 @@ const DoctorDashboard = () => {
                   <ArrowRightIcon className="h-5 w-5 text-gray-400" />
                 </button>
 
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button
+                  onClick={() => navigate('/doctor/write-prescription')}
+                  className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
                   <div className="bg-purple-100 p-3 rounded-lg mr-4">
                     <ClipboardDocumentListIcon className="h-6 w-6 text-purple-600" />
                   </div>
