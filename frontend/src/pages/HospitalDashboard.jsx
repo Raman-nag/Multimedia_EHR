@@ -1,5 +1,6 @@
 import React from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
+import { Link } from 'react-router-dom';
 import { 
   BuildingOfficeIcon, 
   UserGroupIcon, 
@@ -134,7 +135,7 @@ const HospitalDashboard = () => {
           </div>
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Link to="/hospital/add-doctor" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="bg-blue-100 p-3 rounded-lg mr-4">
                   <UserGroupIcon className="h-6 w-6 text-blue-600" />
                 </div>
@@ -143,9 +144,9 @@ const HospitalDashboard = () => {
                   <p className="text-sm text-gray-500">Register new doctor</p>
                 </div>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 ml-auto" />
-              </button>
+              </Link>
 
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Link to="/hospital/patients" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="bg-green-100 p-3 rounded-lg mr-4">
                   <HeartIcon className="h-6 w-6 text-green-600" />
                 </div>
@@ -154,9 +155,9 @@ const HospitalDashboard = () => {
                   <p className="text-sm text-gray-500">Manage patient records</p>
                 </div>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 ml-auto" />
-              </button>
+              </Link>
 
-              <button className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <Link to="/hospital/analytics" className="flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className="bg-purple-100 p-3 rounded-lg mr-4">
                   <ChartBarIcon className="h-6 w-6 text-purple-600" />
                 </div>
@@ -165,7 +166,7 @@ const HospitalDashboard = () => {
                   <p className="text-sm text-gray-500">View system analytics</p>
                 </div>
                 <ArrowRightIcon className="h-5 w-5 text-gray-400 ml-auto" />
-              </button>
+              </Link>
             </div>
           </div>
         </div>
