@@ -15,9 +15,11 @@ import {
   ClockIcon
 } from '@heroicons/react/24/outline';
 import DashboardLayout from '../components/layout/DashboardLayout';
+import { useNavigate } from 'react-router-dom';
 import { mockUsers, mockMedicalRecords, mockNotifications, mockStats } from '../data/mockData';
 
 const PatientDashboard = () => {
+  const navigate = useNavigate();
   const [userProfile, setUserProfile] = useState(mockUsers.patient);
   const [walletAddress, setWalletAddress] = useState(mockUsers.patient.walletAddress);
   const [networkStatus, setNetworkStatus] = useState('connected');
@@ -216,7 +218,7 @@ const PatientDashboard = () => {
             </div>
             <div className="p-6">
               <div className="space-y-4">
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button onClick={() => navigate('/patient/medical-history')} className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="bg-blue-100 p-3 rounded-lg mr-4">
                     <DocumentTextIcon className="h-6 w-6 text-blue-600" />
                   </div>
@@ -227,7 +229,7 @@ const PatientDashboard = () => {
                   <ArrowRightIcon className="h-5 w-5 text-gray-400" />
                 </button>
 
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button onClick={() => navigate('/patient/prescriptions')} className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="bg-green-100 p-3 rounded-lg mr-4">
                     <ClipboardDocumentListIcon className="h-6 w-6 text-green-600" />
                   </div>
@@ -238,7 +240,7 @@ const PatientDashboard = () => {
                   <ArrowRightIcon className="h-5 w-5 text-gray-400" />
                 </button>
 
-                <button className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                <button onClick={() => navigate('/patient/manage-access')} className="w-full flex items-center p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
                   <div className="bg-purple-100 p-3 rounded-lg mr-4">
                     <KeyIcon className="h-6 w-6 text-purple-600" />
                   </div>

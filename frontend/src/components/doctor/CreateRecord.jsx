@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   UserIcon, 
   DocumentTextIcon, 
-  PillsIcon,
+  ClipboardDocumentListIcon,
   CalendarIcon,
   CloudArrowUpIcon,
   CheckCircleIcon,
@@ -330,7 +330,7 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
             name="prescriptionDetails"
             label="Prescription Details"
             placeholder="Medications, dosages, and instructions..."
-            icon={PillsIcon}
+            icon={ClipboardDocumentListIcon}
             multiline
             rows={4}
             required

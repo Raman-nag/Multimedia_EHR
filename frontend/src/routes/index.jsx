@@ -26,7 +26,7 @@ const DoctorList = lazy(() => import('../components/hospital/DoctorList'));
 const PatientList = lazy(() => import('../components/hospital/PatientList'));
 const HospitalAnalytics = lazy(() => import('../pages/HospitalAnalytics'));
 const DoctorDashboard = lazy(() => import('../pages/DoctorDashboard'));
-const CreateRecordPage = lazy(() => import('../pages/doctor/CreateRecordPage'));
+const CreateRecord = lazy(() => import('../components/doctor/CreateRecord'));
 const MyPatients = lazy(() => import('../components/doctor/MyPatients'));
 const PrescriptionForm = lazy(() => import('../components/doctor/PrescriptionForm'));
 const ViewPatientHistory = lazy(() => import('../components/doctor/ViewPatientHistory'));
@@ -148,14 +148,6 @@ const AppRouter = () => {
                   } 
                 />
                 {/* Doctor subpages */}
-                <Route 
-                  path="/doctor/create-record" 
-                  element={
-                    <RouteWrapper>
-                      <CreateRecordPage />
-                    </RouteWrapper>
-                  }
-                />
                 <Route
                   path="/doctor/create-record"
                   element={
