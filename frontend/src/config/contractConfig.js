@@ -1,14 +1,64 @@
 // Centralized contract and IPFS configuration
-// NOTE: Replace placeholder addresses with your deployed addresses.
-// ABIs are imported from compiled artifacts (expected in backend/artifacts or similar).
+// NOTE: After deployment, run: node backend/scripts/copy-abis.js
+// Then update the imports below to load the actual ABIs
 
-// ABIs start empty; after deployment, you can copy JSON ABIs into the frontend
-// or load them via a separate build step. Leaving them empty prevents runtime
-// bundling errors during initial development when artifacts may not exist.
-const EMRSystemABI = [];
-const DoctorManagementABI = [];
-const HospitalManagementABI = [];
-const PatientManagementABI = [];
+// Import ABIs - these will be available after running copy-abis.js script
+// For now, using empty arrays - will be populated after deployment
+// After deployment, uncomment and update the imports below:
+
+// import DoctorManagementABI_RAW from './abis/DoctorManagement.json';
+// import PatientManagementABI_RAW from './abis/PatientManagement.json';
+// import HospitalManagementABI_RAW from './abis/HospitalManagement.json';
+// import EMRSystemABI_RAW from './abis/EMRSystem.json';
+
+// const DoctorManagementABI = DoctorManagementABI_RAW?.abi || DoctorManagementABI_RAW || [];
+// const PatientManagementABI = PatientManagementABI_RAW?.abi || PatientManagementABI_RAW || [];
+// const HospitalManagementABI = HospitalManagementABI_RAW?.abi || HospitalManagementABI_RAW || [];
+// const EMRSystemABI = EMRSystemABI_RAW?.abi || EMRSystemABI_RAW || [];
+
+// Temporary empty arrays - replace after deployment
+let EMRSystemABI = [];
+let DoctorManagementABI = [];
+let HospitalManagementABI = [];
+let PatientManagementABI = [];
+
+// Dynamic loader function - will be called when needed
+export const loadABIs = async () => {
+  try {
+    const DoctorABI = await import('./abis/DoctorManagement.json');
+    DoctorManagementABI.length = 0;
+    DoctorManagementABI.push(...(DoctorABI.default?.abi || DoctorABI.default || DoctorABI.abi || DoctorABI || []));
+  } catch (e) {
+    console.warn('DoctorManagement ABI not found. Run: node backend/scripts/copy-abis.js');
+  }
+
+  try {
+    const PatientABI = await import('./abis/PatientManagement.json');
+    PatientManagementABI.length = 0;
+    PatientManagementABI.push(...(PatientABI.default?.abi || PatientABI.default || PatientABI.abi || PatientABI || []));
+  } catch (e) {
+    console.warn('PatientManagement ABI not found. Run: node backend/scripts/copy-abis.js');
+  }
+
+  try {
+    const HospitalABI = await import('./abis/HospitalManagement.json');
+    HospitalManagementABI.length = 0;
+    HospitalManagementABI.push(...(HospitalABI.default?.abi || HospitalABI.default || HospitalABI.abi || HospitalABI || []));
+  } catch (e) {
+    console.warn('HospitalManagement ABI not found. Run: node backend/scripts/copy-abis.js');
+  }
+
+  try {
+    const EMRABI = await import('./abis/EMRSystem.json');
+    EMRSystemABI.length = 0;
+    EMRSystemABI.push(...(EMRABI.default?.abi || EMRABI.default || EMRABI.abi || EMRABI || []));
+  } catch (e) {
+    console.warn('EMRSystem ABI not found. Run: node backend/scripts/copy-abis.js');
+  }
+};
+
+// Load ABIs asynchronously (non-blocking)
+loadABIs().catch(err => console.warn('Failed to load ABIs:', err));
 
 export const CONTRACT_ADDRESSES = {
   // Replace with real deployed addresses per network
