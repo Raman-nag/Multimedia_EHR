@@ -13,8 +13,8 @@ async function main() {
   console.log('\n1. Deploying DoctorManagement...');
   const DoctorManagement = await hre.ethers.getContractFactory('DoctorManagement');
   const doctorManagement = await DoctorManagement.deploy();
-  await doctorManagement.waitForDeployment();
-  const doctorManagementAddress = await doctorManagement.getAddress();
+  await doctorManagement.deployed();
+  const doctorManagementAddress = doctorManagement.address;
   console.log('DoctorManagement deployed to:', doctorManagementAddress);
   deployments.DoctorManagement = doctorManagementAddress;
 
@@ -22,8 +22,8 @@ async function main() {
   console.log('\n2. Deploying PatientManagement...');
   const PatientManagement = await hre.ethers.getContractFactory('PatientManagement');
   const patientManagement = await PatientManagement.deploy(doctorManagementAddress);
-  await patientManagement.waitForDeployment();
-  const patientManagementAddress = await patientManagement.getAddress();
+  await patientManagement.deployed();
+  const patientManagementAddress = patientManagement.address;
   console.log('PatientManagement deployed to:', patientManagementAddress);
   deployments.PatientManagement = patientManagementAddress;
 
@@ -34,8 +34,8 @@ async function main() {
     doctorManagementAddress,
     patientManagementAddress
   );
-  await hospitalManagement.waitForDeployment();
-  const hospitalManagementAddress = await hospitalManagement.getAddress();
+  await hospitalManagement.deployed();
+  const hospitalManagementAddress = hospitalManagement.address;
   console.log('HospitalManagement deployed to:', hospitalManagementAddress);
   deployments.HospitalManagement = hospitalManagementAddress;
 
@@ -47,8 +47,8 @@ async function main() {
     doctorManagementAddress,
     patientManagementAddress
   );
-  await emrSystem.waitForDeployment();
-  const emrSystemAddress = await emrSystem.getAddress();
+  await emrSystem.deployed();
+  const emrSystemAddress = emrSystem.address;
   console.log('EMRSystem deployed to:', emrSystemAddress);
   deployments.EMRSystem = emrSystemAddress;
 
