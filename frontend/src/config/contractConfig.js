@@ -1,14 +1,78 @@
 // Centralized contract and IPFS configuration
-// NOTE: Replace placeholder addresses with your deployed addresses.
-// ABIs are imported from compiled artifacts (expected in backend/artifacts or similar).
+// NOTE: After deployment, run: node backend/scripts/copy-abis.js
+// Then update the imports below to load the actual ABIs
 
-// ABIs start empty; after deployment, you can copy JSON ABIs into the frontend
-// or load them via a separate build step. Leaving them empty prevents runtime
-// bundling errors during initial development when artifacts may not exist.
-const EMRSystemABI = [];
-const DoctorManagementABI = [];
-const HospitalManagementABI = [];
-const PatientManagementABI = [];
+// Import ABIs - these will be available after running copy-abis.js script
+// For now, using empty arrays - will be populated after deployment
+// After deployment, uncomment and update the imports below:
+
+// import DoctorManagementABI_RAW from './abis/DoctorManagement.json';
+// import PatientManagementABI_RAW from './abis/PatientManagement.json';
+// import HospitalManagementABI_RAW from './abis/HospitalManagement.json';
+// import EMRSystemABI_RAW from './abis/EMRSystem.json';
+
+// const DoctorManagementABI = DoctorManagementABI_RAW?.abi || DoctorManagementABI_RAW || [];
+// const PatientManagementABI = PatientManagementABI_RAW?.abi || PatientManagementABI_RAW || [];
+// const HospitalManagementABI = HospitalManagementABI_RAW?.abi || HospitalManagementABI_RAW || [];
+// const EMRSystemABI = EMRSystemABI_RAW?.abi || EMRSystemABI_RAW || [];
+
+// Temporary empty arrays - replace after deployment
+let EMRSystemABI = [];
+let DoctorManagementABI = [];
+let HospitalManagementABI = [];
+let PatientManagementABI = [];
+
+// Dynamic loader function - will be called when needed
+export const loadABIs = async () => {
+  // Use dynamic imports with error handling - Vite will handle this at build time
+  // If files don't exist, the import will fail gracefully
+  const loadABI = async (contractName) => {
+    try {
+      // Try to import the ABI file
+      const module = await import(`./abis/${contractName}.json`);
+      const abi = module.default?.abi || module.default || module.abi || module;
+      
+      // Update the corresponding ABI array
+      switch(contractName) {
+        case 'DoctorManagement':
+          DoctorManagementABI.length = 0;
+          DoctorManagementABI.push(...(Array.isArray(abi) ? abi : []));
+          break;
+        case 'PatientManagement':
+          PatientManagementABI.length = 0;
+          PatientManagementABI.push(...(Array.isArray(abi) ? abi : []));
+          break;
+        case 'HospitalManagement':
+          HospitalManagementABI.length = 0;
+          HospitalManagementABI.push(...(Array.isArray(abi) ? abi : []));
+          break;
+        case 'EMRSystem':
+          EMRSystemABI.length = 0;
+          EMRSystemABI.push(...(Array.isArray(abi) ? abi : []));
+          break;
+      }
+      return true;
+    } catch (e) {
+      // File doesn't exist yet - this is expected before deployment
+      console.warn(`${contractName} ABI not found. Run: node backend/scripts/copy-abis.js after deployment.`);
+      return false;
+    }
+  };
+
+  // Load all ABIs
+  await Promise.all([
+    loadABI('DoctorManagement'),
+    loadABI('PatientManagement'),
+    loadABI('HospitalManagement'),
+    loadABI('EMRSystem')
+  ]);
+};
+
+// Load ABIs asynchronously (non-blocking)
+// Don't await - let it load in background
+loadABIs().catch(() => {
+  // Silently fail - ABIs will be loaded when files are available
+});
 
 export const CONTRACT_ADDRESSES = {
   // Replace with real deployed addresses per network

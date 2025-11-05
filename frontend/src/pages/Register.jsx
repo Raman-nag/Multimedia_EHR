@@ -1,37 +1,40 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
-  EyeIcon, 
-  EyeSlashIcon, 
   HeartIcon, 
   ShieldCheckIcon,
   ArrowRightIcon,
   CheckCircleIcon,
   UserIcon,
   BuildingOfficeIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  WalletIcon
 } from '@heroicons/react/24/outline';
-import { findMockUserByEmail } from '../utils/mockDataHelpers';
+import { useAuth } from '../contexts/AuthContext';
+import { connectWallet, ensureCorrectNetwork } from '../utils/web3';
 
 const Register = () => {
+  const { register } = useAuth();
+  const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
     role: 'patient',
-    phone: '',
+    // Patient fields
+    name: '',
+    dateOfBirth: '',
+    bloodGroup: '',
+    // Hospital fields
     organization: '',
+    registrationNumber: '',
+    // Doctor fields (not used in registration - doctors are added by hospitals)
     licenseNumber: '',
-    terms: false
   });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [walletAddress, setWalletAddress] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
-  const navigate = useNavigate();
 
   const roleOptions = [
     { 
@@ -39,69 +42,74 @@ const Register = () => {
       label: 'Patient', 
       description: 'Access and manage your medical records',
       icon: UserIcon,
-      fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone']
-    },
-    { 
-      value: 'doctor', 
-      label: 'Doctor', 
-      description: 'Manage patient records and prescriptions',
-      icon: UserGroupIcon,
-      fields: ['firstName', 'lastName', 'email', 'password', 'confirmPassword', 'phone', 'licenseNumber']
     },
     { 
       value: 'hospital', 
       label: 'Hospital', 
       description: 'Administrative dashboard and staff management',
       icon: BuildingOfficeIcon,
-      fields: ['organization', 'email', 'password', 'confirmPassword', 'phone', 'licenseNumber']
+    },
+    { 
+      value: 'doctor', 
+      label: 'Doctor', 
+      description: 'Doctors must be registered by a hospital administrator',
+      icon: UserGroupIcon,
+      disabled: true,
     }
   ];
 
   const currentRole = roleOptions.find(role => role.value === formData.role);
 
+  // Connect wallet
+  const handleConnectWallet = async () => {
+    try {
+      setIsConnecting(true);
+      setErrors({});
+      
+      await ensureCorrectNetwork();
+      const { accounts } = await connectWallet();
+      
+      if (!accounts || accounts.length === 0) {
+        throw new Error('No wallet accounts found. Please connect MetaMask.');
+      }
+
+      setWalletAddress(accounts[0]);
+      setCurrentStep(2);
+    } catch (err) {
+      setErrors({ 
+        wallet: err.message || 'Failed to connect wallet. Please make sure MetaMask is installed and unlocked.' 
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
-    // Common validations
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
-    }
-
-    if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
-    }
-
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
-
-    if (!formData.terms) {
-      newErrors.terms = 'You must accept the terms and conditions';
+    if (!walletAddress) {
+      newErrors.wallet = 'Please connect your wallet first';
+      return false;
     }
 
     // Role-specific validations
-    if (currentRole.fields.includes('firstName') && !formData.firstName) {
-      newErrors.firstName = 'First name is required';
-    }
-
-    if (currentRole.fields.includes('lastName') && !formData.lastName) {
-      newErrors.lastName = 'Last name is required';
-    }
-
-    if (currentRole.fields.includes('organization') && !formData.organization) {
-      newErrors.organization = 'Organization name is required';
-    }
-
-    if (currentRole.fields.includes('phone') && !formData.phone) {
-      newErrors.phone = 'Phone number is required';
-    }
-
-    if (currentRole.fields.includes('licenseNumber') && !formData.licenseNumber) {
-      newErrors.licenseNumber = 'License number is required';
+    if (formData.role === 'patient') {
+      if (!formData.name || formData.name.trim().length === 0) {
+        newErrors.name = 'Name is required';
+      }
+      if (!formData.dateOfBirth) {
+        newErrors.dateOfBirth = 'Date of birth is required';
+      }
+      if (!formData.bloodGroup || formData.bloodGroup.trim().length === 0) {
+        newErrors.bloodGroup = 'Blood group is required';
+      }
+    } else if (formData.role === 'hospital') {
+      if (!formData.organization || formData.organization.trim().length === 0) {
+        newErrors.organization = 'Hospital name is required';
+      }
+      if (!formData.registrationNumber || formData.registrationNumber.trim().length === 0) {
+        newErrors.registrationNumber = 'Registration number is required';
+      }
     }
 
     setErrors(newErrors);
@@ -116,36 +124,33 @@ const Register = () => {
     }
 
     setIsLoading(true);
+    setErrors({});
 
     try {
-      // TODO: Replace with actual blockchain registration
-      // This is mock registration for demonstration
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API call
+      let registrationData = {};
       
-      // Find mock user data based on email and role
-      const mockUser = findMockUserByEmail(formData.email, formData.role);
-      
-      if (!mockUser) {
-        throw new Error('No matching mock user found. Please use a pre-configured email address.');
+      if (formData.role === 'patient') {
+        registrationData = {
+          name: formData.name,
+          dateOfBirth: formData.dateOfBirth,
+          bloodGroup: formData.bloodGroup
+        };
+      } else if (formData.role === 'hospital') {
+        registrationData = {
+          name: formData.organization,
+          registrationNumber: formData.registrationNumber
+        };
       }
 
-      // Create user data from mock data
-      const userData = {
-        ...mockUser,
-        registeredAt: new Date().toISOString()
-      };
-
-      // TODO: Store authentication token and user data
-      localStorage.setItem('userRole', formData.role);
-      localStorage.setItem('userData', JSON.stringify(userData));
+      const result = await register(formData.role, registrationData);
       
-  // Navigate to appropriate dashboard (route pattern: /<role>/dashboard)
-  navigate(`/${formData.role}/dashboard`);
+      if (!result.success) {
+        throw new Error(result.error || 'Registration failed');
+      }
+      
     } catch (err) {
       setErrors({ 
-        general: err.message === 'No matching mock user found. Please use a pre-configured email address.' 
-          ? 'Please use one of the following test emails:\n- Patient: john.doe@email.com\n- Doctor: sarah.johnson@citygeneral.com\n- Hospital: admin@citygeneral.com'
-          : 'Registration failed. Please try again.' 
+        general: err.message || 'Registration failed. Please try again.' 
       });
     } finally {
       setIsLoading(false);
@@ -153,10 +158,10 @@ const Register = () => {
   };
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target;
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     });
     
     // Clear error when user starts typing
@@ -170,18 +175,17 @@ const Register = () => {
 
   const nextStep = () => {
     if (currentStep === 1) {
-      // Validate role selection and basic info
-      const step1Errors = {};
-      if (!formData.role) step1Errors.role = 'Please select a role';
-      if (currentRole.fields.includes('firstName') && !formData.firstName) step1Errors.firstName = 'First name is required';
-      if (currentRole.fields.includes('lastName') && !formData.lastName) step1Errors.lastName = 'Last name is required';
-      if (currentRole.fields.includes('organization') && !formData.organization) step1Errors.organization = 'Organization name is required';
-      
-      if (Object.keys(step1Errors).length === 0) {
-        setCurrentStep(2);
-      } else {
-        setErrors(step1Errors);
+      if (!formData.role) {
+        setErrors({ role: 'Please select a role' });
+        return;
       }
+      if (formData.role === 'doctor') {
+        setErrors({ 
+          general: 'Doctors must be registered by a hospital administrator. Please contact your hospital.' 
+        });
+        return;
+      }
+      setCurrentStep(2);
     }
   };
 
@@ -195,7 +199,7 @@ const Register = () => {
       <div className="absolute inset-0 bg-grid-slate-100 dark:bg-grid-slate-800/25 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.6))] dark:[mask-image:linear-gradient(0deg,rgba(255,255,255,0.1),rgba(255,255,255,0.5))]"></div>
       
       <div className="relative max-w-2xl w-full">
-        {/* Header : Join multmedia EHR*/}
+        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
             <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-700 rounded-2xl flex items-center justify-center shadow-lg">
@@ -206,7 +210,7 @@ const Register = () => {
             Join Multimedia EHR
           </h2>
           <p className="mt-2 text-slate-600 dark:text-slate-300">
-            Create your secure healthcare account
+            Create your secure healthcare account with blockchain
           </p>
         </div>
 
@@ -229,7 +233,7 @@ const Register = () => {
           </div>
           <div className="flex justify-center mt-2">
             <span className="text-sm text-slate-600 dark:text-slate-300">
-              {currentStep === 1 ? 'Account Type & Basic Info' : 'Security & Verification'}
+              {currentStep === 1 ? 'Select Role' : walletAddress ? 'Complete Registration' : 'Connect Wallet'}
             </span>
           </div>
         </div>
@@ -249,7 +253,9 @@ const Register = () => {
                       <label
                         key={role.value}
                         className={`relative flex items-center p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 ${
-                          formData.role === role.value
+                          role.disabled
+                            ? 'opacity-50 cursor-not-allowed border-slate-200 dark:border-slate-600'
+                            : formData.role === role.value
                             ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                             : 'border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500'
                         }`}
@@ -260,9 +266,10 @@ const Register = () => {
                           value={role.value}
                           checked={formData.role === role.value}
                           onChange={handleInputChange}
+                          disabled={role.disabled}
                           className="sr-only"
                         />
-                        <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-4 w-full">
                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
                             formData.role === role.value
                               ? 'bg-primary-100 dark:bg-primary-900/30'
@@ -274,7 +281,7 @@ const Register = () => {
                                 : 'text-slate-600 dark:text-slate-400'
                             }`} />
                           </div>
-                          <div>
+                          <div className="flex-1">
                             <div className="font-medium text-slate-900 dark:text-slate-100">
                               {role.label}
                             </div>
@@ -289,65 +296,12 @@ const Register = () => {
                   {errors.role && <p className="mt-2 text-sm text-error-600 dark:text-error-400">{errors.role}</p>}
                 </div>
 
-                {/* Dynamic Fields Based on Role */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {currentRole.fields.includes('firstName') && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        First Name
-                      </label>
-                      <input
-                        type="text"
-                        name="firstName"
-                        value={formData.firstName}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                        placeholder="Enter your first name"
-                      />
-                      {errors.firstName && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.firstName}</p>}
-                    </div>
-                  )}
-
-                  {currentRole.fields.includes('lastName') && (
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Last Name
-                      </label>
-                      <input
-                        type="text"
-                        name="lastName"
-                        value={formData.lastName}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                        placeholder="Enter your last name"
-                      />
-                      {errors.lastName && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.lastName}</p>}
-                    </div>
-                  )}
-
-                  {currentRole.fields.includes('organization') && (
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                        Organization Name
-                      </label>
-                      <input
-                        type="text"
-                        name="organization"
-                        value={formData.organization}
-                        onChange={handleInputChange}
-                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                        placeholder="Enter your organization name"
-                      />
-                      {errors.organization && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.organization}</p>}
-                    </div>
-                  )}
-                </div>
-
                 {/* Next Button */}
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="w-full flex justify-center items-center px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                  disabled={formData.role === 'doctor'}
+                  className="w-full flex justify-center items-center px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                 >
                   Continue
                   <ArrowRightIcon className="w-5 h-5 ml-2" />
@@ -355,131 +309,165 @@ const Register = () => {
               </>
             )}
 
-            {currentStep === 2 && (
+            {currentStep === 2 && !walletAddress && (
               <>
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Enter your email"
-                  />
-                  {errors.email && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.email}</p>}
+                {/* Wallet Connection */}
+                <div className="text-center space-y-4">
+                  <div className="flex justify-center">
+                    <div className="w-16 h-16 bg-primary-100 dark:bg-primary-900/30 rounded-full flex items-center justify-center">
+                      <WalletIcon className="w-8 h-8 text-primary-600 dark:text-primary-400" />
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+                    Connect Your Wallet
+                  </h3>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Connect your MetaMask wallet to register on the blockchain
+                  </p>
+                  {errors.wallet && (
+                    <div className="bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 rounded-xl p-4">
+                      <p className="text-sm text-error-700 dark:text-error-300">{errors.wallet}</p>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleConnectWallet}
+                    disabled={isConnecting}
+                    className="w-full flex justify-center items-center px-4 py-3 bg-gradient-to-r from-primary-600 to-primary-700 text-white font-semibold rounded-xl hover:from-primary-700 hover:to-primary-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                  >
+                    {isConnecting ? (
+                      <div className="flex items-center">
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                        Connecting...
+                      </div>
+                    ) : (
+                      <div className="flex items-center">
+                        <WalletIcon className="w-5 h-5 mr-2" />
+                        Connect MetaMask
+                      </div>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    className="text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+
+            {currentStep === 2 && walletAddress && (
+              <>
+                {/* Connected Wallet Info */}
+                <div className="bg-primary-50 dark:bg-primary-900/20 rounded-xl p-4 border border-primary-200 dark:border-primary-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-primary-700 dark:text-primary-300">Connected Wallet</p>
+                      <p className="text-sm text-primary-600 dark:text-primary-400 font-mono">
+                        {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                      </p>
+                    </div>
+                    <CheckCircleIcon className="w-6 h-6 text-green-500" />
+                  </div>
                 </div>
 
-                {/* Phone */}
-                {currentRole.fields.includes('phone') && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                      placeholder="Enter your phone number"
-                    />
-                    {errors.phone && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.phone}</p>}
-                  </div>
+                {/* Role-specific registration fields */}
+                {formData.role === 'patient' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                        placeholder="Enter your full name"
+                      />
+                      {errors.name && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.name}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Date of Birth
+                      </label>
+                      <input
+                        type="date"
+                        name="dateOfBirth"
+                        value={formData.dateOfBirth}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      />
+                      {errors.dateOfBirth && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.dateOfBirth}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Blood Group
+                      </label>
+                      <select
+                        name="bloodGroup"
+                        value={formData.bloodGroup}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                      >
+                        <option value="">Select blood group</option>
+                        <option value="A+">A+</option>
+                        <option value="A-">A-</option>
+                        <option value="B+">B+</option>
+                        <option value="B-">B-</option>
+                        <option value="AB+">AB+</option>
+                        <option value="AB-">AB-</option>
+                        <option value="O+">O+</option>
+                        <option value="O-">O-</option>
+                      </select>
+                      {errors.bloodGroup && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.bloodGroup}</p>}
+                    </div>
+                  </>
                 )}
 
-                {/* License Number */}
-                {currentRole.fields.includes('licenseNumber') && (
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      License Number
-                    </label>
-                    <input
-                      type="text"
-                      name="licenseNumber"
-                      value={formData.licenseNumber}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                      placeholder="Enter your license number"
-                    />
-                    {errors.licenseNumber && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.licenseNumber}</p>}
-                  </div>
+                {formData.role === 'hospital' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Hospital Name
+                      </label>
+                      <input
+                        type="text"
+                        name="organization"
+                        value={formData.organization}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                        placeholder="Enter hospital name"
+                      />
+                      {errors.organization && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.organization}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Registration Number
+                      </label>
+                      <input
+                        type="text"
+                        name="registrationNumber"
+                        value={formData.registrationNumber}
+                        onChange={handleInputChange}
+                        required
+                        className="w-full px-4 py-3 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                        placeholder="Enter registration number"
+                      />
+                      {errors.registrationNumber && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.registrationNumber}</p>}
+                    </div>
+                  </>
                 )}
-
-                {/* Password */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      name="password"
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 pr-12 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                      placeholder="Create a strong password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    >
-                      {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.password}</p>}
-                </div>
-
-                {/* Confirm Password */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 pr-12 border border-slate-300 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                      placeholder="Confirm your password"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                    </button>
-                  </div>
-                  {errors.confirmPassword && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.confirmPassword}</p>}
-                </div>
-
-                {/* Terms and Conditions */}
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    name="terms"
-                    checked={formData.terms}
-                    onChange={handleInputChange}
-                    className="w-4 h-4 text-primary-600 bg-slate-100 dark:bg-slate-700 border-slate-300 dark:border-slate-600 rounded focus:ring-primary-500 focus:ring-2 mt-1"
-                  />
-                  <label className="ml-3 text-sm text-slate-600 dark:text-slate-300">
-                    I agree to the{' '}
-                    <a href="#" className="text-primary-600 dark:text-primary-400 hover:underline">
-                      Terms of Service
-                    </a>{' '}
-                    and{' '}
-                    <a href="#" className="text-primary-600 dark:text-primary-400 hover:underline">
-                      Privacy Policy
-                    </a>
-                  </label>
-                </div>
-                {errors.terms && <p className="mt-1 text-sm text-error-600 dark:text-error-400">{errors.terms}</p>}
 
                 {/* General Error */}
                 {errors.general && (
@@ -505,11 +493,11 @@ const Register = () => {
                     {isLoading ? (
                       <div className="flex items-center">
                         <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                        Creating Account...
+                        Registering...
                       </div>
                     ) : (
                       <div className="flex items-center">
-                        Create Account
+                        Register on Blockchain
                         <ArrowRightIcon className="w-5 h-5 ml-2" />
                       </div>
                     )}
@@ -554,7 +542,7 @@ const Register = () => {
             </div>
             <div className="flex items-center">
               <CheckCircleIcon className="w-3 h-3 text-green-500 mr-2" />
-              Zero-Knowledge Proof
+              Wallet-Based Auth
             </div>
           </div>
         </div>
