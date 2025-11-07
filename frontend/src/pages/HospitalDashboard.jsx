@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { Link } from 'react-router-dom';
 import { 
@@ -10,52 +10,106 @@ import {
   PlusIcon,
   ArrowRightIcon
 } from '@heroicons/react/24/outline';
+import { getHospitalContract } from '../utils/contract';
+import { getProvider } from '../utils/web3';
 
 const HospitalDashboard = () => {
-  // Mock data for demonstration
-  const userProfile = {
-    firstName: 'John',
-    lastName: 'Smith',
-    role: 'Hospital Administrator'
-  };
-  
-  const walletAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-  const networkStatus = 'connected';
+  const [userProfile, setUserProfile] = useState({ firstName: '', lastName: '', role: 'Hospital Administrator' });
+  const [walletAddress, setWalletAddress] = useState('');
+  const [networkStatus, setNetworkStatus] = useState('connected');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const stats = [
-    {
-      name: 'Total Doctors',
-      value: '24',
-      change: '+2 this month',
-      icon: UserGroupIcon,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100'
-    },
-    {
-      name: 'Active Patients',
-      value: '1,247',
-      change: '+12% from last month',
-      icon: HeartIcon,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100'
-    },
-    {
-      name: 'Medical Records',
-      value: '8,934',
-      change: '+156 this week',
-      icon: DocumentTextIcon,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100'
-    },
-    {
-      name: 'System Health',
-      value: '99.9%',
-      change: 'All systems operational',
-      icon: ChartBarIcon,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100'
-    }
-  ];
+  useEffect(() => {
+    const loadHospital = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const provider = getProvider();
+        if (!provider) throw new Error('Wallet provider not available');
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setWalletAddress(address);
+
+        const hospitalContract = await getHospitalContract();
+        let details;
+        try {
+          details = await hospitalContract.getHospitalDetails(address);
+        } catch (_) {
+          // fallback if only mapping exists
+          details = await hospitalContract.hospitals?.(address);
+        }
+
+        const name = details?.name || '';
+        setUserProfile({ firstName: name, lastName: '', role: 'Hospital Administrator' });
+        setNetworkStatus('connected');
+      } catch (e) {
+        console.error('Failed to load hospital data:', e);
+        setError(e?.message || 'Failed to load hospital data');
+        setNetworkStatus('disconnected');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadHospital();
+  }, []);
+
+  const [stats, setStats] = useState([
+    { name: 'Total Doctors', value: '—', change: '', icon: UserGroupIcon, color: 'text-blue-600', bgColor: 'bg-blue-100' },
+    { name: 'Active Patients', value: '—', change: '', icon: HeartIcon, color: 'text-green-600', bgColor: 'bg-green-100' },
+    { name: 'Medical Records', value: '—', change: '', icon: DocumentTextIcon, color: 'text-purple-600', bgColor: 'bg-purple-100' },
+  ]);
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const provider = getProvider();
+        if (!provider) return;
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        const hospitalContract = await getHospitalContract();
+
+        // Get counts from hospital details
+        let details;
+        try {
+          details = await hospitalContract.getHospitalDetails(address);
+        } catch (_) {
+          details = await hospitalContract.hospitals?.(address);
+        }
+
+        const doctorCount = Number(details?.doctorCount ?? 0);
+        const patientCount = Number(details?.patientCount ?? 0);
+
+        // Estimate records: for each patient, count records via DoctorManagement
+        let recordCount = 0;
+        try {
+          const doctorModule = await import('../utils/contract');
+          const doctorContract = await doctorModule.getDoctorContract();
+          const patients = await hospitalContract.getHospitalPatients(address);
+          const recordCounts = await Promise.all(
+            patients.map(async (p) => {
+              try {
+                const recs = await doctorContract.getPatientRecords(p);
+                return Array.isArray(recs) ? recs.length : 0;
+              } catch {
+                return 0;
+              }
+            })
+          );
+          recordCount = recordCounts.reduce((a, b) => a + b, 0);
+        } catch (_) {}
+
+        setStats(prev => [
+          { ...prev[0], value: String(doctorCount) },
+          { ...prev[1], value: String(patientCount) },
+          { ...prev[2], value: String(recordCount) },
+        ]);
+      } catch (e) {
+        console.warn('Failed to load stats', e);
+      }
+    };
+    loadStats();
+  }, []);
 
   const recentActivities = [
     {
@@ -95,10 +149,14 @@ const HospitalDashboard = () => {
         {/* Welcome Section */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg p-6 text-white">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold">Hospital Management Dashboard</h1>
               <p className="mt-2 text-blue-100">
-                Manage your healthcare ecosystem with blockchain-powered security
+                {userProfile.firstName ? (
+                  <span className="block max-w-full truncate sm:whitespace-normal sm:break-words sm:line-clamp-2">
+                    Welcome back, {userProfile.firstName}
+                  </span>
+                ) : 'Manage your healthcare ecosystem with blockchain-powered security'}
               </p>
             </div>
             <div className="bg-white bg-opacity-20 rounded-full p-4">

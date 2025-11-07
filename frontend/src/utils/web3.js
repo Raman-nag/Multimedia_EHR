@@ -11,8 +11,10 @@ export async function connectWallet() {
   if (!eth) {
     throw new Error('MetaMask is not installed');
   }
+  // Ensure we're on the correct network before requesting accounts
+  await ensureCorrectNetwork();
   const accounts = await eth.request({ method: 'eth_requestAccounts' });
-  const provider = new ethers.BrowserProvider(eth, 'any');
+  const provider = new ethers.providers.Web3Provider(eth, 'any');
   const signer = await provider.getSigner();
   cachedProvider = provider;
   cachedSigner = signer;
@@ -23,7 +25,7 @@ export function getProvider() {
   if (cachedProvider) return cachedProvider;
   const eth = getWindowEthereum();
   if (!eth) return null;
-  cachedProvider = new ethers.BrowserProvider(eth, 'any');
+  cachedProvider = new ethers.providers.Web3Provider(eth, 'any');
   return cachedProvider;
 }
 
@@ -47,16 +49,58 @@ export async function ensureCorrectNetwork(targetKey = DEFAULT_NETWORK_KEY) {
   if (!eth) throw new Error('MetaMask not available');
   const target = NETWORKS[targetKey];
   const current = await eth.request({ method: 'eth_chainId' });
-  if (current?.toLowerCase() !== target.chainIdHex) {
+
+  // Accept either 0x7A69 (31337) or 0x539 (1337) as valid local chains
+  const validLocalChains = new Set(['0x7a69', '0x7A69', '0x539']);
+  if (validLocalChains.has(current)) return;
+
+  // Prefer Hardhat 31337
+  const preferredChainIdHex = '0x7A69';
+  try {
+    await eth.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: preferredChainIdHex }],
+    });
+    return;
+  } catch (switchError) {
+    // If the chain is not added, attempt to add it
+    if (switchError?.code === 4902) {
+      await addHardhatNetwork();
+      // Try switching again after adding
+      await eth.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: preferredChainIdHex }],
+      });
+      return;
+    }
+    // As a fallback, try switching to 1337
     try {
       await eth.request({
         method: 'wallet_switchEthereumChain',
-        params: [{ chainId: target.chainIdHex }],
+        params: [{ chainId: target?.chainIdHex || '0x539' }],
       });
-    } catch (switchError) {
+    } catch (_) {
       throw new Error('Please switch your wallet to the correct network');
     }
   }
+}
+
+export async function addHardhatNetwork() {
+  const eth = getWindowEthereum();
+  if (!eth) throw new Error('MetaMask not available');
+  await eth.request({
+    method: 'wallet_addEthereumChain',
+    params: [{
+      chainId: '0x7A69',
+      chainName: 'Hardhat Local',
+      rpcUrls: ['http://127.0.0.1:8545'],
+      nativeCurrency: {
+        name: 'Ethereum',
+        symbol: 'ETH',
+        decimals: 18,
+      },
+    }],
+  });
 }
 
 export function subscribeWalletEvents({ onAccountsChanged, onChainChanged }) {
@@ -98,6 +142,7 @@ export default {
   getSigner,
   getChainId,
   ensureCorrectNetwork,
+  addHardhatNetwork,
   subscribeWalletEvents,
   sendTx,
   resetCache,

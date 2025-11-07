@@ -3,18 +3,57 @@ import { CONTRACT_ABIS, CONTRACT_ADDRESSES, DEFAULT_NETWORK_KEY } from '../confi
 import { getProvider, getSigner } from './web3';
 
 function getAddress(contractKey, networkKey = DEFAULT_NETWORK_KEY) {
-  const map = CONTRACT_ADDRESSES[networkKey] || {};
-  return map[contractKey];
+  console.debug('[Contract] getAddress called', { contractKey, networkKey });
+  const possibleKeys = [
+    networkKey,
+    'localhost',
+    31337,
+    '31337',
+    1337,
+    '1337',
+    '0x7A69',
+    '0x539',
+  ];
+
+  for (const key of possibleKeys) {
+    const map = CONTRACT_ADDRESSES[key];
+    if (map && map[contractKey] && map[contractKey] !== '0x0000000000000000000000000000000000000000') {
+      console.log(`[contract.js] Found ${contractKey} address for network ${key}:`, map[contractKey]);
+      return map[contractKey];
+    }
+  }
+
+  console.error(`[contract.js] No valid address found for ${contractKey}. Tried keys:`, possibleKeys);
+  console.warn('[contract.js] Available CONTRACT_ADDRESSES keys:', Object.keys(CONTRACT_ADDRESSES || {}));
+  return null;
 }
 
 export async function getContractInstance(contractKey, withSigner = true) {
+  // Get ABI and address
   const abi = CONTRACT_ABIS[contractKey];
+  console.debug('[Contract] DEFAULT_NETWORK_KEY', DEFAULT_NETWORK_KEY);
   const address = getAddress(contractKey);
-  if (!abi || abi.length === 0) throw new Error(`ABI not loaded for ${contractKey}`);
-  if (!address || address === '0x0000000000000000000000000000000000000000') throw new Error(`${contractKey} address not configured`);
+  
+  // Validate ABI
+  if (!abi || abi.length === 0) {
+    throw new Error(`ABI not loaded for ${contractKey}`);
+  }
+  
+  // Validate address
+  if (!address || address === '0x0000000000000000000000000000000000000000') {
+    const networkKey = DEFAULT_NETWORK_KEY;
+    const addressesForNetwork = CONTRACT_ADDRESSES[networkKey] || {};
+    throw new Error(
+      `${contractKey} address not configured for network "${networkKey}". Loaded addresses: ${JSON.stringify(addressesForNetwork)}`
+    );
+  }
+  
+  // Get provider and signer
   const provider = getProvider();
   if (!provider) throw new Error('Provider not available');
   const signer = withSigner ? await getSigner() : null;
+  
+  // Create and return contract instance
   return new ethers.Contract(address, abi, signer || provider);
 }
 
@@ -49,5 +88,3 @@ export default {
   formatTxReceipt,
   parseContractError,
 };
-
-

@@ -67,6 +67,17 @@ async function main() {
   );
   console.log('Deployment addresses saved to:', deploymentPath);
 
+  // Grant roles post-deploy
+  try {
+    console.log("\n🔐 Granting roles...");
+    const hospitalAdminRole = await doctorManagement.HOSPITAL_ADMIN_ROLE();
+    const tx = await doctorManagement.grantRole(hospitalAdminRole, hospitalManagement.address);
+    await tx.wait();
+    console.log("✅ HOSPITAL_ADMIN_ROLE granted to HospitalManagement");
+  } catch (e) {
+    console.warn('Warning: failed to grant HOSPITAL_ADMIN_ROLE automatically:', e.message);
+  }
+
   // Copy ABIs to frontend
   const frontendAbiPath = path.join(__dirname, '..', '..', 'frontend', 'src', 'config', 'abis');
   if (!fs.existsSync(frontendAbiPath)) {

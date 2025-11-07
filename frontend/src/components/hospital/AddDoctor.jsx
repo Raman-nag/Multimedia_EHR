@@ -14,7 +14,7 @@ import hospitalService from '../../services/hospitalService';
 import { useToast } from '../../contexts/ToastContext';
 
 const AddDoctor = ({ onDoctorAdded, onCancel }) => {
-  const { showToast } = useToast();
+  const { showSuccess, showError } = useToast();
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -113,7 +113,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
       );
 
       if (result.success) {
-        showToast('Doctor registered successfully on blockchain!', 'success');
+        showSuccess('Doctor registered successfully on blockchain!');
         
         // Doctor can update their profile later with name and specialization
         const doctorData = {
@@ -134,7 +134,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
       }
     } catch (error) {
       console.error('Error adding doctor:', error);
-      showToast(error.message || 'Failed to register doctor', 'error');
+      showError(error.message || 'Failed to register doctor');
       setErrors({ general: error.message || 'Failed to register doctor. Please try again.' });
     } finally {
       setIsSubmitting(false);
@@ -164,7 +164,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
         {options ? (
           <select
             name={name}
-            value={formData[name]}
+            value={formData[name] ?? ''}
             onChange={handleInputChange}
             className={`
               block w-full rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
@@ -187,8 +187,14 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
           <input
             type={type}
             name={name}
-            value={formData[name]}
-            onChange={handleInputChange}
+            value={formData[name] ?? ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              setFormData(prev => ({ ...prev, [name]: v }));
+              if (errors[name]) {
+                setErrors(prev => ({ ...prev, [name]: '' }));
+              }
+            }}
             placeholder={placeholder}
             className={`
               block w-full rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500

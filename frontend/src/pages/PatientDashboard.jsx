@@ -16,41 +16,61 @@ import {
 } from '@heroicons/react/24/outline';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { useNavigate } from 'react-router-dom';
-import { mockUsers, mockMedicalRecords, mockNotifications, mockStats } from '../data/mockData';
+import { getPatientContract } from '../utils/contract';
+import { getProvider } from '../utils/web3';
 
 const PatientDashboard = () => {
   const navigate = useNavigate();
-  const [userProfile, setUserProfile] = useState(mockUsers.patient);
-  const [walletAddress, setWalletAddress] = useState(mockUsers.patient.walletAddress);
+  const [userProfile, setUserProfile] = useState({ firstName: '', lastName: '', bloodGroup: '', dateOfBirth: '' });
+  const [walletAddress, setWalletAddress] = useState('');
   const [networkStatus, setNetworkStatus] = useState('connected');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // TODO: Load user data from blockchain
-    // This is mock data for demonstration
     const loadUserData = async () => {
       setIsLoading(true);
+      setError(null);
       try {
-        // TODO: Fetch user data from blockchain contract
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-        setUserProfile(mockUsers.patient);
-        setWalletAddress(mockUsers.patient.walletAddress);
+        const provider = getProvider();
+        if (!provider) throw new Error('Wallet provider not available');
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setWalletAddress(address);
+
+        const patientContract = await getPatientContract();
+        // Prefer detailed getter if available
+        let profile;
+        try {
+          profile = await patientContract.getPatientDetails(address);
+        } catch (_) {
+          // Fallback to mapping access if needed
+          profile = await patientContract.patients(address);
+        }
+
+        const name = profile?.name || '';
+        const [firstName, ...rest] = String(name).trim().split(' ');
+        const lastName = rest.join(' ');
+        const dateOfBirth = profile?.dateOfBirth || '';
+        const bloodGroup = profile?.bloodGroup || '';
+
+        setUserProfile({ firstName, lastName, bloodGroup, dateOfBirth });
         setNetworkStatus('connected');
-      } catch (error) {
-        console.error('Failed to load user data:', error);
+      } catch (e) {
+        console.error('Failed to load user data:', e);
+        setError(e?.message || 'Failed to load user data');
         setNetworkStatus('disconnected');
       } finally {
         setIsLoading(false);
       }
     };
-
     loadUserData();
   }, []);
 
   const stats = [
     {
       name: 'Medical Records',
-      value: mockStats.patient.totalRecords.toString(),
+      value: '—',
       change: `+${Math.floor(Math.random() * 5)} this month`,
       icon: DocumentTextIcon,
       color: 'text-primary-600 dark:text-primary-400',
@@ -58,7 +78,7 @@ const PatientDashboard = () => {
     },
     {
       name: 'Active Prescriptions',
-      value: mockStats.patient.activePrescriptions.toString(),
+      value: '—',
       change: `${Math.floor(Math.random() * 3)} expiring soon`,
       icon: ClipboardDocumentListIcon,
       color: 'text-success-600 dark:text-success-400',
@@ -66,7 +86,7 @@ const PatientDashboard = () => {
     },
     {
       name: 'Upcoming Appointments',
-      value: mockStats.patient.upcomingAppointments.toString(),
+    value: '—',
       change: 'Next: Tomorrow',
       icon: CalendarIcon,
       color: 'text-purple-600 dark:text-purple-400',
@@ -175,12 +195,14 @@ const PatientDashboard = () => {
         <div className="bg-gradient-to-r from-primary-600 to-purple-600 rounded-xl p-6 text-white shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold">Welcome back, {userProfile.firstName}!</h1>
+              <h1 className="text-2xl font-bold">Welcome back, {userProfile.firstName || 'Patient'}!</h1>
               <p className="mt-2 text-primary-100">
                 Access your secure medical records and manage your health data
               </p>
               <div className="mt-3 text-sm text-primary-100">
-                Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                {walletAddress ? (
+                  <>Wallet: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</>
+                ) : 'Wallet: —'}
               </div>
             </div>
             <div className="bg-white/20 rounded-full p-4">

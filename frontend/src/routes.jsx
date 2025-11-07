@@ -1,6 +1,7 @@
 // src/routes.jsx
 import React from "react";
 import { Routes, Route } from "react-router-dom";
+import { ToastProvider } from "./contexts/ToastContext";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -21,7 +22,8 @@ import GrantAccess from "./components/patient/GrantAccess";
 
 export default function AppRouter() {
   return (
-    <Routes>
+    <ToastProvider>
+      <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
@@ -45,5 +47,6 @@ export default function AppRouter() {
       <Route path="/patient/manage-access" element={<GrantAccess />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </ToastProvider>
   );
 }

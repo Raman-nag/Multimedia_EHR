@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWeb3 } from '../../hooks/useWeb3';
+import { getProvider } from '../../utils/web3';
 import {
   WalletIcon,
   CheckCircleIcon,
@@ -25,21 +26,16 @@ const WalletConnection = () => {
     }
   }, [isConnected, account]);
 
-  // Mock blockchain call to fetch balance
+  // Fetch real balance from provider
   const fetchBalance = async () => {
     setIsLoadingBalance(true);
     
     try {
-      console.log('// Blockchain call would happen here: getBalance(account)');
-      
-      // Simulate async blockchain call
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Mock ETH balance (random between 0.1 and 10 ETH)
-      const mockBalance = (Math.random() * 9.9 + 0.1).toFixed(4);
-      setBalance(mockBalance);
-
-      console.log('[Mock] Balance fetched:', mockBalance, 'ETH');
+      const provider = getProvider();
+      if (!provider || !account) throw new Error('Provider or account unavailable');
+      const bal = await provider.getBalance(account);
+      const eth = Number(bal) / 1e18;
+      setBalance(eth.toFixed(4));
     } catch (err) {
       console.error('Error fetching balance:', err);
       setBalance('0.0000');
