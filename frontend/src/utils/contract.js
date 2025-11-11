@@ -51,6 +51,17 @@ export async function getContractInstance(contractKey, withSigner = true) {
   // Get provider and signer
   const provider = getProvider();
   if (!provider) throw new Error('Provider not available');
+
+  // Ensure contract is deployed at the resolved address
+  try {
+    const code = await provider.getCode(address);
+    if (!code || code === '0x') {
+      throw new Error(`${contractKey} not deployed at ${address} (no bytecode found)`);
+    }
+  } catch (e) {
+    console.error('[Contract] getCode check failed for', contractKey, address, e);
+    throw e;
+  }
   const signer = withSigner ? await getSigner() : null;
   
   // Create and return contract instance

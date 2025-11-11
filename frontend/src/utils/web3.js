@@ -127,6 +127,26 @@ export async function sendTx(txPromise, { onPending, onSuccess, onError } = {}) 
     if (err?.code === 4001) {
       throw new Error('User rejected the transaction');
     }
+    // RPC rate limit / provider saturation errors (MetaMask, Infura/Alchemy, local node)
+    const msg = (err?.message || '').toLowerCase();
+    const reason = (err?.reason || '').toLowerCase();
+    const dataMsg = (err?.data?.message || '').toLowerCase();
+    const combined = `${msg} ${reason} ${dataMsg}`;
+    if (
+      err?.code === -32005 ||
+      combined.includes('rate limit') ||
+      combined.includes('too many request') ||
+      combined.includes('endpoint returned too many errors') ||
+      combined.includes('gateway timeout') ||
+      combined.includes('timeout')
+    ) {
+      throw new Error(
+        'RPC endpoint is rate-limited or unavailable. Please ensure your local node is running (Hardhat/Anvil/Ganache), switch to the correct localhost network in MetaMask, and try again. If using a hosted RPC, wait a minute and retry or change the RPC URL.'
+      );
+    }
+    if (combined.includes('network error') || combined.includes('failed to fetch') || combined.includes('connection not open')) {
+      throw new Error('Network error connecting to RPC. Verify your internet/RPC node, then reload the dApp and your wallet network.');
+    }
     throw err;
   }
 }
