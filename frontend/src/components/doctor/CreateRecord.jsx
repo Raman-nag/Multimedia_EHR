@@ -11,10 +11,11 @@ import {
 } from '@heroicons/react/24/outline';
 import Button from '../common/Button';
 import doctorService from '../../services/doctorService';
+import { uploadMultipleToIPFS } from '../../utils/ipfs';
 import { useToast } from '../../contexts/ToastContext';
 
 const CreateRecord = ({ onRecordCreated, onCancel }) => {
-  const { showToast } = useToast();
+  const { showSuccess, showError, showInfo, showLoading, dismiss } = useToast();
   const [formData, setFormData] = useState({
     patientWalletAddress: '',
     diagnosis: '',
@@ -30,6 +31,7 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const recordTypes = [
     'Consultation',
@@ -115,10 +117,10 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
         uploadedDocuments: [...prev.uploadedDocuments, ...uploadedFiles]
       }));
       
-      showToast('Files ready for upload. They will be uploaded to IPFS when you create the record.', 'info');
+      showInfo('Files ready. They will be uploaded to IPFS when you create the record.');
     } catch (error) {
       console.error('Error preparing files:', error);
-      showToast('Error preparing files for upload', 'error');
+      showError('Error preparing files for upload');
     } finally {
       setIsUploading(false);
     }
@@ -134,17 +136,39 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
+    setUploadProgress(0);
     
     try {
       // Prepare files for IPFS upload
       const files = formData.uploadedDocuments
         .filter(doc => doc.file)
         .map(doc => doc.file);
+
+      // Upload to Pinata (IPFS)
+      let ipfsHash = '';
+      if (files.length > 0) {
+        setIsUploading(true);
+        const toastId = showLoading('Uploading to IPFS...');
+        try {
+          const cids = await uploadMultipleToIPFS(
+            files,
+            (p) => setUploadProgress(p)
+          );
+          // Store as JSON string to keep schema compatibility with single ipfsHash field
+          ipfsHash = JSON.stringify(cids);
+          dismiss(toastId);
+          showSuccess('Uploaded to IPFS');
+        } catch (e) {
+          dismiss(toastId);
+          throw new Error(e?.message || 'IPFS upload failed');
+        } finally {
+          setIsUploading(false);
+          setUploadProgress(100);
+        }
+      }
 
       // Prepare record data
       const recordData = {
@@ -153,25 +177,40 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
         prescription: formData.prescriptionDetails,
         treatmentPlan: formData.treatmentPlan,
         treatment: formData.treatmentPlan,
-        doctorNotes: formData.notes || ''
+        doctorNotes: formData.notes || '',
+        ipfsHash
       };
 
-      // Create record on blockchain with IPFS file upload
+      // Create record on blockchain (files not needed since we pass ipfsHash)
       const result = await doctorService.createRecord(
         formData.patientWalletAddress,
         recordData,
-        files
+        []
       );
 
       if (result.success) {
-        showToast('Medical record created successfully on blockchain!', 'success');
-        onRecordCreated(result.record);
+        showSuccess('Medical record created successfully on blockchain!');
+        onRecordCreated && onRecordCreated(result.record);
+        // Reset form
+        setFormData({
+          patientWalletAddress: '',
+          diagnosis: '',
+          symptoms: '',
+          prescriptionDetails: '',
+          treatmentPlan: '',
+          visitDate: new Date().toISOString().split('T')[0],
+          recordType: 'Consultation',
+          notes: '',
+          uploadedDocuments: []
+        });
+        const inputEl = document.getElementById('file-upload');
+        if (inputEl) inputEl.value = '';
       } else {
         throw new Error(result.error || 'Failed to create record');
       }
     } catch (error) {
       console.error('Error creating record:', error);
-      showToast(error.message || 'Failed to create medical record', 'error');
+      showError(error.message || 'Failed to create medical record');
       setErrors({ general: error.message || 'Failed to create record. Please try again.' });
     } finally {
       setIsSubmitting(false);
@@ -391,7 +430,7 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
                     Upload medical documents
                   </span>
                   <span className="mt-1 block text-sm text-gray-500 dark:text-gray-400">
-                    X-rays, lab reports, images, etc. (IPFS storage)
+                    X-rays, lab reports, images, videos, PDFs (IPFS storage)
                   </span>
                 </label>
                 <input
@@ -399,7 +438,7 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
                   name="file-upload"
                   type="file"
                   multiple
-                  accept=".pdf,.jpg,.jpeg,.png,.dcm,.dicom"
+                  accept="image/*,video/*,.pdf"
                   onChange={handleFileUpload}
                   className="sr-only"
                   disabled={isUploading}
@@ -413,7 +452,7 @@ const CreateRecord = ({ onRecordCreated, onCancel }) => {
                   disabled={isUploading}
                   icon={<CloudArrowUpIcon className="w-4 h-4" />}
                 >
-                  {isUploading ? 'Uploading...' : 'Choose Files'}
+                  {isUploading ? `Uploading... ${uploadProgress}%` : 'Choose Files'}
                 </Button>
               </div>
             </div>

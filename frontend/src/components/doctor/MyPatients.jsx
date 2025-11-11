@@ -11,6 +11,28 @@ import {
 import Card from '../common/Card';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
+import Modal from '../common/Modal';
+import doctorService from '../../services/doctorService';
+import { ipfsUrl } from '../../utils/ipfs';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(err) { /* no-op */ }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-4 rounded-lg border border-red-300 text-red-700 bg-red-50">
+          Something went wrong while rendering this view.
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const MyPatients = ({ onViewHistory }) => {
   const [patients, setPatients] = useState([]);
@@ -18,139 +40,132 @@ const MyPatients = ({ onViewHistory }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('lastVisit');
   const [sortOrder, setSortOrder] = useState('desc');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Mock data - replace with actual API calls
-  const mockPatients = [
-    {
-      id: 'pat_001',
-      firstName: 'John',
-      lastName: 'Doe',
-      patientId: 'PAT-001',
-      email: 'john.doe@email.com',
-      phone: '+1 (555) 345-6789',
-      dateOfBirth: '1985-03-15',
-      gender: 'Male',
-      bloodType: 'O+',
-      lastVisitDate: '2024-03-15',
-      totalRecords: 15,
-      status: 'Active',
-      nextAppointment: '2024-03-25',
-      emergencyContact: {
-        name: 'Jane Doe',
-        relationship: 'Spouse',
-        phone: '+1 (555) 456-7890'
-      },
-      medicalHistory: [
-        {
-          id: 'rec_001',
-          date: '2024-03-15',
-          diagnosis: 'Hypertension',
-          type: 'Follow-up'
-        },
-        {
-          id: 'rec_002',
-          date: '2024-02-15',
-          diagnosis: 'High Blood Pressure',
-          type: 'Consultation'
-        }
-      ]
-    },
-    {
-      id: 'pat_002',
-      firstName: 'Alice',
-      lastName: 'Smith',
-      patientId: 'PAT-002',
-      email: 'alice.smith@email.com',
-      phone: '+1 (555) 456-7890',
-      dateOfBirth: '1990-07-22',
-      gender: 'Female',
-      bloodType: 'A+',
-      lastVisitDate: '2024-03-10',
-      totalRecords: 8,
-      status: 'Active',
-      nextAppointment: '2024-03-28',
-      emergencyContact: {
-        name: 'Bob Smith',
-        relationship: 'Brother',
-        phone: '+1 (555) 567-8901'
-      },
-      medicalHistory: [
-        {
-          id: 'rec_003',
-          date: '2024-03-10',
-          diagnosis: 'Migraine',
-          type: 'Consultation'
-        }
-      ]
-    },
-    {
-      id: 'pat_003',
-      firstName: 'Robert',
-      lastName: 'Johnson',
-      patientId: 'PAT-003',
-      email: 'robert.johnson@email.com',
-      phone: '+1 (555) 567-8901',
-      dateOfBirth: '1978-12-05',
-      gender: 'Male',
-      bloodType: 'B-',
-      lastVisitDate: '2024-03-08',
-      totalRecords: 23,
-      status: 'Active',
-      nextAppointment: null,
-      emergencyContact: {
-        name: 'Mary Johnson',
-        relationship: 'Wife',
-        phone: '+1 (555) 678-9012'
-      },
-      medicalHistory: [
-        {
-          id: 'rec_004',
-          date: '2024-03-08',
-          diagnosis: 'Diabetes Type 2',
-          type: 'Check-up'
-        },
-        {
-          id: 'rec_005',
-          date: '2024-01-15',
-          diagnosis: 'Diabetes Management',
-          type: 'Follow-up'
-        }
-      ]
-    },
-    {
-      id: 'pat_004',
-      firstName: 'Lisa',
-      lastName: 'Brown',
-      patientId: 'PAT-004',
-      email: 'lisa.brown@email.com',
-      phone: '+1 (555) 678-9012',
-      dateOfBirth: '1992-05-18',
-      gender: 'Female',
-      bloodType: 'AB+',
-      lastVisitDate: '2024-03-05',
-      totalRecords: 12,
-      status: 'Active',
-      nextAppointment: '2024-03-30',
-      emergencyContact: {
-        name: 'David Brown',
-        relationship: 'Father',
-        phone: '+1 (555) 789-0123'
-      },
-      medicalHistory: [
-        {
-          id: 'rec_006',
-          date: '2024-03-05',
-          diagnosis: 'Anxiety Disorder',
-          type: 'Consultation'
-        }
-      ]
+  // History modal state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyPatient, setHistoryPatient] = useState(null);
+  const [historyRecords, setHistoryRecords] = useState([]);
+
+  // New Record modal state
+  const [recordOpen, setRecordOpen] = useState(false);
+  const [recordFor, setRecordFor] = useState(null);
+  const [recordSubmitting, setRecordSubmitting] = useState(false);
+  const [recordError, setRecordError] = useState('');
+  const [form, setForm] = useState({ diagnosis: '', symptoms: '', prescription: '', treatmentPlan: '', ipfsHash: '' });
+
+  // Temporary import validity logging to catch invalid element type errors
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.debug('[MyPatients] Imported components', { Card: !!Card, Button: !!Button, SearchBar: !!SearchBar });
+  }, []);
+
+  // Load real on-chain patients for the connected doctor
+  const fetchPatients = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const res = await doctorService.getMyPatients();
+      const normalized = (res?.patients || []).map((p, idx) => {
+        const fullName = p.name || '';
+        const firstName = fullName.split(' ')[0] || fullName || (p.walletAddress?.slice(0,6) + '...');
+        const lastName = fullName.split(' ').slice(1).join(' ');
+        return {
+          id: p.walletAddress || String(idx),
+          walletAddress: p.walletAddress,
+          firstName,
+          lastName,
+          patientId: p.walletAddress ? `${p.walletAddress.slice(0,6)}...${p.walletAddress.slice(-4)}` : '—',
+          email: '',
+          phone: '',
+          dateOfBirth: p.dateOfBirth || '',
+          gender: '',
+          bloodType: p.bloodGroup || '—',
+          lastVisitDate: p.lastVisitDate || '',
+          totalRecords: Number(p.totalRecords || 0),
+          status: p.isActive ? 'Active' : 'Inactive',
+          nextAppointment: null,
+        };
+      });
+      setPatients(normalized);
+      setFilteredPatients(normalized);
+    } catch (e) {
+      setError(e?.message || 'Failed to load patients');
+      setPatients([]);
+      setFilteredPatients([]);
+    } finally {
+      setLoading(false);
     }
-  ];
+  };
 
   useEffect(() => {
-    setPatients(mockPatients);
-    setFilteredPatients(mockPatients);
+    let mounted = true;
+    fetchPatients().catch(() => {});
+    return () => { mounted = false; };
   }, []);
+
+  const handleViewHistory = async (patient) => {
+    setHistoryPatient(patient);
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError('');
+    try {
+      const res = await doctorService.getPatientHistory(patient.walletAddress);
+      setHistoryRecords((res?.records || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        diagnosis: r.diagnosis,
+        prescription: r.prescription,
+        treatmentPlan: r.treatmentPlan,
+        ipfsHash: r.ipfsHash,
+        doctorAddress: r.doctorAddress,
+      })));
+    } catch (e) {
+      setHistoryError(e?.message || 'Failed to load history');
+      setHistoryRecords([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleOpenRecord = (patient) => {
+    setRecordFor(patient);
+    setForm({ diagnosis: '', symptoms: '', prescription: '', treatmentPlan: '', ipfsHash: '' });
+    setRecordError('');
+    setRecordOpen(true);
+  };
+
+  const submitRecord = async (e) => {
+    e?.preventDefault?.();
+    if (!recordFor) return;
+    setRecordSubmitting(true);
+    setRecordError('');
+    try {
+      const payload = {
+        diagnosis: form.diagnosis,
+        symptoms: form.symptoms ? form.symptoms.split(',').map(s => s.trim()).filter(Boolean) : [],
+        prescription: form.prescription,
+        treatmentPlan: form.treatmentPlan,
+        ipfsHash: form.ipfsHash,
+      };
+      const res = await doctorService.createRecord(recordFor.walletAddress, payload, []);
+      if (res?.success) {
+        // Refresh patients and, if history modal for same patient is open, refresh it too
+        await fetchPatients();
+        if (historyOpen && historyPatient && historyPatient.walletAddress === recordFor.walletAddress) {
+          await handleViewHistory(historyPatient);
+        }
+        setRecordOpen(false);
+      }
+    } catch (e) {
+      setRecordError(e?.message || 'Failed to create record');
+    } finally {
+      setRecordSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     let filtered = patients;
@@ -264,10 +279,11 @@ const MyPatients = ({ onViewHistory }) => {
   };
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       {/* Search and Sort */}
       <Card>
-        <Card.Content>
+        <Card.Body>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             <div className="flex-1 max-w-md">
               <SearchBar
@@ -302,14 +318,129 @@ const MyPatients = ({ onViewHistory }) => {
               </div>
             </div>
           </div>
-        </Card.Content>
+        </Card.Body>
       </Card>
 
+      {/* History Modal */}
+      <Modal
+        isOpen={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        title={historyPatient ? `History: ${historyPatient.firstName} ${historyPatient.lastName}` : 'Patient History'}
+        size="xl"
+      >
+        {historyLoading && <p className="text-sm text-gray-500">Loading history...</p>}
+        {historyError && !historyLoading && <p className="text-sm text-red-600">{historyError}</p>}
+        {!historyLoading && !historyError && (
+          <div className="space-y-4">
+            {historyRecords.length === 0 && (
+              <p className="text-sm text-gray-500">No records for this patient.</p>
+            )}
+            {historyRecords.map(r => (
+              <div key={r.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-500">{r.date}</div>
+                  <div className="text-xs font-mono">{r.id}</div>
+                </div>
+                <div className="mt-2 text-sm">
+                  <div><span className="font-medium">Diagnosis:</span> {r.diagnosis || '—'}</div>
+                  <div><span className="font-medium">Prescription:</span> {r.prescription || '—'}</div>
+                  <div><span className="font-medium">Treatment:</span> {r.treatmentPlan || '—'}</div>
+                  <div className="mt-2">
+                    <span className="font-medium">Documents:</span>
+                    {(() => {
+                      if (!r.ipfsHash) return <span> —</span>;
+                      let cids = [];
+                      try {
+                        if (typeof r.ipfsHash === 'string' && (r.ipfsHash.trim().startsWith('[') || r.ipfsHash.trim().startsWith('{'))) {
+                          const parsed = JSON.parse(r.ipfsHash);
+                          if (Array.isArray(parsed)) cids = parsed;
+                          else if (parsed && typeof parsed === 'object') cids = Object.values(parsed);
+                        } else if (typeof r.ipfsHash === 'string') {
+                          cids = [r.ipfsHash];
+                        } else if (Array.isArray(r.ipfsHash)) {
+                          cids = r.ipfsHash;
+                        }
+                      } catch {
+                        cids = [String(r.ipfsHash)];
+                      }
+                      cids = (cids || []).filter(Boolean);
+                      if (cids.length === 0) return <span> —</span>;
+                      return (
+                        <div className="mt-1 space-y-1">
+                          {cids.map((cid, idx) => (
+                            <div key={`${r.id}-cid-${idx}`}>
+                              <a className="text-blue-600 hover:underline break-all" href={ipfsUrl(cid)} target="_blank" rel="noreferrer">
+                                Document {idx + 1}
+                              </a>
+                              <span className="ml-2 text-xs text-gray-500 font-mono">{cid}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* New Record Modal */}
+      <Modal
+        isOpen={recordOpen}
+        onClose={() => setRecordOpen(false)}
+        title={recordFor ? `New Record for ${recordFor.firstName} ${recordFor.lastName}` : 'New Record'}
+        size="lg"
+      >
+        <form onSubmit={submitRecord} className="space-y-4">
+          {recordError && <div className="text-sm text-red-600">{recordError}</div>}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Diagnosis</label>
+            <input className="w-full mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800" value={form.diagnosis} onChange={e => setForm({ ...form, diagnosis: e.target.value })} required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Symptoms (comma separated)</label>
+            <input className="w-full mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800" value={form.symptoms} onChange={e => setForm({ ...form, symptoms: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Prescription</label>
+            <input className="w-full mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800" value={form.prescription} onChange={e => setForm({ ...form, prescription: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Treatment Plan</label>
+            <input className="w-full mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800" value={form.treatmentPlan} onChange={e => setForm({ ...form, treatmentPlan: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">IPFS Hash</label>
+            <input className="w-full mt-1 px-3 py-2 border rounded-md bg-white dark:bg-gray-800" value={form.ipfsHash} onChange={e => setForm({ ...form, ipfsHash: e.target.value })} required />
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="ghost" onClick={() => setRecordOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={recordSubmitting}>Create</Button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Patients Grid */}
+      {loading && (
+        <Card>
+          <Card.Body>
+            <p className="text-sm text-gray-500">Loading patients...</p>
+          </Card.Body>
+        </Card>
+      )}
+      {error && !loading && (
+        <Card>
+          <Card.Body>
+            <p className="text-sm text-red-600">{error}</p>
+          </Card.Body>
+        </Card>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredPatients.map((patient) => (
           <Card key={patient.id} className="hover:shadow-lg transition-shadow duration-300">
-            <Card.Content>
+            <Card.Body>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center space-x-3">
                   <div className="flex-shrink-0 h-12 w-12">
@@ -332,15 +463,15 @@ const MyPatients = ({ onViewHistory }) => {
               <div className="space-y-3 mb-4">
                 <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                   <EnvelopeIcon className="h-4 w-4" />
-                  <span>{patient.email}</span>
+                  <span>{patient.email || '—'}</span>
                 </div>
                 <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                   <PhoneIcon className="h-4 w-4" />
-                  <span>{patient.phone}</span>
+                  <span>{patient.phone || '—'}</span>
                 </div>
                 <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
                   <CalendarIcon className="h-4 w-4" />
-                  <span>{calculateAge(patient.dateOfBirth)} years old</span>
+                  <span>{patient.dateOfBirth ? `${calculateAge(patient.dateOfBirth)} years old` : '—'}</span>
                 </div>
               </div>
 
@@ -349,7 +480,7 @@ const MyPatients = ({ onViewHistory }) => {
                   <div>
                     <p className="text-gray-500 dark:text-gray-400">Last Visit</p>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {formatDate(patient.lastVisitDate)}
+                      {patient.lastVisitDate ? formatDate(patient.lastVisitDate) : '—'}
                     </p>
                   </div>
                   <div>
@@ -376,7 +507,7 @@ const MyPatients = ({ onViewHistory }) => {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => onViewHistory(patient)}
+                  onClick={() => handleViewHistory(patient)}
                   icon={<DocumentTextIcon className="w-4 h-4" />}
                   className="flex-1"
                 >
@@ -385,20 +516,20 @@ const MyPatients = ({ onViewHistory }) => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => console.log('Create record for:', patient)}
+                  onClick={() => handleOpenRecord(patient)}
                   icon={<DocumentTextIcon className="w-4 h-4" />}
                 >
                   New Record
                 </Button>
               </div>
-            </Card.Content>
+            </Card.Body>
           </Card>
         ))}
       </div>
 
       {filteredPatients.length === 0 && (
         <Card>
-          <Card.Content>
+          <Card.Body>
             <div className="text-center py-12">
               <UserIcon className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -411,13 +542,13 @@ const MyPatients = ({ onViewHistory }) => {
                 }
               </p>
             </div>
-          </Card.Content>
+          </Card.Body>
         </Card>
       )}
 
       {/* Summary Stats */}
       <Card>
-        <Card.Content>
+        <Card.Body>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -457,9 +588,10 @@ const MyPatients = ({ onViewHistory }) => {
               </p>
             </div>
           </div>
-        </Card.Content>
+        </Card.Body>
       </Card>
     </div>
+    </ErrorBoundary>
   );
 };
 
