@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { getHospitalContract } from '../utils/contract';
 import { getProvider } from '../utils/web3';
+import hospitalService from '../services/hospitalService';
 
 const HospitalDashboard = () => {
   const [userProfile, setUserProfile] = useState({ firstName: '', lastName: '', role: 'Hospital Administrator' });
@@ -111,32 +112,37 @@ const HospitalDashboard = () => {
     loadStats();
   }, []);
 
-  const recentActivities = [
-    {
-      id: 1,
-      type: 'doctor_added',
-      message: 'Dr. Vijay Johnson joined the hospital',
-      time: '2 hours ago',
-      icon: UserGroupIcon,
-      color: 'text-blue-500'
-    },
-    {
-      id: 2,
-      type: 'patient_record',
-      message: 'New patient record created for Raman',
-      time: '4 days ago',
-      icon: DocumentTextIcon,
-      color: 'text-green-500'
-    },
-    {
-      id: 3,
-      type: 'system_update',
-      message: 'System maintenance completed successfully',
-      time: '1 week ago',
-      icon: ChartBarIcon,
-      color: 'text-purple-500'
-    }
-  ];
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [loadingActivity, setLoadingActivity] = useState(true);
+  const [activityError, setActivityError] = useState(null);
+
+  useEffect(() => {
+    const loadActivity = async () => {
+      setLoadingActivity(true);
+      setActivityError(null);
+      try {
+        const resp = await hospitalService.getRecentActivity(20);
+        const activities = Array.isArray(resp?.activities) ? resp.activities : [];
+        const normalized = activities.map((a, idx) => {
+          if (a.type === 'doctor_registered') {
+            const name = a?.doctor?.name && a.doctor.name.trim().length > 0
+              ? a.doctor.name
+              : (a?.doctor?.walletAddress ? `${a.doctor.walletAddress.slice(0,6)}...${a.doctor.walletAddress.slice(-4)}` : 'Doctor');
+            const msg = `Dr. ${name} joined the hospital`;
+            return { id: idx, icon: UserGroupIcon, color: 'text-blue-500', message: msg, time: new Date((a.timestamp || 0) * 1000).toLocaleString() };
+          }
+          return { id: idx, icon: DocumentTextIcon, color: 'text-green-500', message: a.message, time: new Date((a.timestamp || 0) * 1000).toLocaleString() };
+        });
+        setRecentActivities(normalized);
+      } catch (e) {
+        setActivityError(e?.message || 'Failed to load recent activity');
+        setRecentActivities([]);
+      } finally {
+        setLoadingActivity(false);
+      }
+    };
+    loadActivity();
+  }, []);
 
   return (
     <DashboardLayout 
@@ -236,7 +242,16 @@ const HospitalDashboard = () => {
           </div>
           <div className="p-6">
             <div className="space-y-4">
-              {recentActivities.map((activity) => {
+              {loadingActivity && (
+                <div className="text-sm text-gray-500">Loading activity...</div>
+              )}
+              {!loadingActivity && recentActivities.length === 0 && !activityError && (
+                <div className="text-sm text-gray-500">No recent on-chain activity found.</div>
+              )}
+              {activityError && (
+                <div className="text-sm text-red-600">{activityError}</div>
+              )}
+              {!loadingActivity && recentActivities.map((activity) => {
                 const IconComponent = activity.icon;
                 return (
                   <div key={activity.id} className="flex items-start">
