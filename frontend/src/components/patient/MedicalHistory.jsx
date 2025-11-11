@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CalendarIcon, 
   UserIcon, 
@@ -9,26 +9,54 @@ import {
 } from '@heroicons/react/24/outline';
 import Card from '../common/Card';
 import Modal from '../common/Modal';
-import { mockMedicalRecords, mockDoctors, mockHospitals } from '../../data/mockData';
+import patientService from '../../services/patientService';
+import { getProvider } from '../../utils/web3';
 
 const MedicalHistory = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
 
-  // TODO: Replace with blockchain data
-  const medicalRecords = mockMedicalRecords;
-  const doctors = mockDoctors;
-  const hospitals = mockHospitals;
-
-  const getDoctorName = (doctorId) => {
-    const doctor = doctors.find(d => d.id === doctorId);
-    return doctor ? `${doctor.firstName} ${doctor.lastName}` : 'Unknown Doctor';
-  };
-
-  const getHospitalName = (hospitalId) => {
-    const hospital = hospitals.find(h => h.id === hospitalId);
-    return hospital ? hospital.name : 'Unknown Hospital';
-  };
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const provider = getProvider();
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        setWalletAddress(address);
+        const res = await patientService.getMyRecords(address);
+        const recs = Array.isArray(res?.records) ? res.records : [];
+        const normalized = recs
+          .slice()
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .map(r => ({
+            id: r.id,
+            date: r.date,
+            diagnosis: r.diagnosis || 'Medical Record',
+            symptoms: r.symptoms || [],
+            treatment: r.treatmentPlan || '',
+            doctorNotes: r.treatmentPlan || '',
+            status: r.isActive ? 'Active' : 'Pending',
+            doctorAddress: r.doctorAddress,
+            doctorName: r.doctorName || (r.doctorAddress ? `${r.doctorAddress.slice(0,6)}...${r.doctorAddress.slice(-4)}` : 'Unknown Doctor'),
+            hospitalName: '—',
+            ipfsHash: r.ipfsHash || '',
+          }));
+        setRecords(normalized);
+      } catch (e) {
+        setError(e?.message || 'Failed to load medical history');
+        setRecords([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const handleViewRecord = (record) => {
     setSelectedRecord(record);
@@ -47,7 +75,19 @@ const MedicalHistory = () => {
         <p className="text-sm text-gray-500">Chronological Timeline</p>
       </div>
 
-      {medicalRecords.length === 0 ? (
+      {loading ? (
+        <Card variant="outlined" className="text-center py-12">
+          <DocumentTextIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Loading records...</h3>
+          <p className="text-sm text-gray-500">Fetching on-chain data</p>
+        </Card>
+      ) : error ? (
+        <Card variant="outlined" className="text-center py-12">
+          <DocumentTextIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load</h3>
+          <p className="text-sm text-gray-500">{error}</p>
+        </Card>
+      ) : records.length === 0 ? (
         <Card variant="outlined" className="text-center py-12">
           <DocumentTextIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Records Yet</h3>
@@ -62,7 +102,7 @@ const MedicalHistory = () => {
 
           {/* Timeline items */}
           <div className="space-y-8">
-            {medicalRecords.map((record, index) => (
+            {records.map((record, index) => (
               <div key={record.id} className="relative flex items-start">
                 {/* Timeline dot */}
                 <div className="relative z-10 flex items-center justify-center w-16 h-16 bg-white rounded-full border-4 border-blue-500">
@@ -98,11 +138,11 @@ const MedicalHistory = () => {
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <UserIcon className="w-4 h-4 mr-2" />
-                            {getDoctorName(record.doctorId)}
+                            {record.doctorName}
                           </div>
                           <div className="flex items-center text-sm text-gray-600 md:col-span-2">
                             <BuildingOfficeIcon className="w-4 h-4 mr-2" />
-                            {getHospitalName(record.hospitalId)}
+                            {record.hospitalName}
                           </div>
                         </div>
 
@@ -201,6 +241,37 @@ const MedicalHistory = () => {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-sm font-medium text-blue-900 mb-2">Doctor's Notes</p>
                 <p className="text-sm text-blue-800">{selectedRecord.doctorNotes}</p>
+              </div>
+            )}
+
+            {selectedRecord.ipfsHash && (
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-2">Medical Documents</p>
+                {(() => {
+                  const ipfs = selectedRecord.ipfsHash;
+                  let docs = [];
+                  try {
+                    docs = typeof ipfs === 'string' ? JSON.parse(ipfs) : (Array.isArray(ipfs) ? ipfs : []);
+                  } catch (e) {
+                    docs = String(ipfs).split(',');
+                  }
+                  docs = (docs || []).map(d => String(d).replace(/\"/g, '"')).filter(Boolean);
+                  return (
+                    <div>
+                      {docs.map((cid, i) => (
+                        <a
+                          key={`${cid}-${i}`}
+                          href={`https://ipfs.io/ipfs/${cid.replace(/"/g,'')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block mb-2 text-blue-600 hover:underline"
+                        >
+                          View Document {i + 1}
+                        </a>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

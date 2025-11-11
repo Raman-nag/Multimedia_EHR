@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ClipboardDocumentListIcon,
   ArrowDownTrayIcon,
@@ -9,17 +9,58 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import Card from '../common/Card';
-import { mockPrescriptions, mockDoctors } from '../../data/mockData';
+import patientService from '../../services/patientService';
+import { getProvider } from '../../utils/web3';
 
 const Prescriptions = () => {
-  // TODO: Replace with blockchain data
-  const prescriptions = mockPrescriptions;
-  const doctors = mockDoctors;
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const getDoctorName = (doctorId) => {
-    const doctor = doctors.find(d => d.id === doctorId);
-    return doctor ? `${doctor.firstName} ${doctor.lastName}` : 'Unknown Doctor';
-  };
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const provider = getProvider();
+        const signer = await provider.getSigner();
+        const address = await signer.getAddress();
+        const res = await patientService.getMyPrescriptions(address);
+        const list = Array.isArray(res?.prescriptions) ? res.prescriptions : [];
+        const normalized = list
+          .slice()
+          .sort((a,b) => new Date(b.date) - new Date(a.date))
+          .map(p => {
+            let meds = [];
+            try {
+              const parsed = typeof p.prescription === 'string' ? JSON.parse(p.prescription) : p.prescription;
+              if (Array.isArray(parsed)) meds = parsed;
+            } catch {
+              // legacy plain-text prescription
+              meds = [{ type: 'Note', name: p.diagnosis || 'Prescription', dosage: '', unit: '', frequency: '', duration: '', instructions: p.prescription || '' }];
+            }
+            if (!Array.isArray(meds) || meds.length === 0) {
+              meds = [{ type: 'Note', name: p.diagnosis || 'Prescription', dosage: '', unit: '', frequency: '', duration: '', instructions: p.prescription || '' }];
+            }
+            return ({
+              id: p.id,
+              status: 'Active',
+              doctorName: p.doctor || (p.doctorAddress ? `${p.doctorAddress.slice(0,6)}...${p.doctorAddress.slice(-4)}` : '—'),
+              date: p.date || '',
+              medications: meds,
+              ipfsHash: p.ipfsHash || ''
+            });
+          });
+        setPrescriptions(normalized);
+      } catch (e) {
+        setError(e?.message || 'Failed to load prescriptions');
+        setPrescriptions([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -48,9 +89,9 @@ const Prescriptions = () => {
   };
 
   const handleDownload = (prescription) => {
-    // TODO: Implement prescription download
-    console.log('Download prescription:', prescription);
-    alert('Prescription download functionality will be implemented with IPFS integration');
+    if (prescription.ipfsHash) {
+      window.open(`https://ipfs.io/ipfs/${prescription.ipfsHash}`, '_blank', 'noreferrer');
+    }
   };
 
   return (
@@ -64,7 +105,19 @@ const Prescriptions = () => {
         </div>
       </div>
 
-      {prescriptions.length === 0 ? (
+      {loading ? (
+        <Card variant="outlined" className="text-center py-12">
+          <ClipboardDocumentListIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Loading prescriptions...</h3>
+          <p className="text-sm text-gray-500">Fetching on-chain data</p>
+        </Card>
+      ) : error ? (
+        <Card variant="outlined" className="text-center py-12">
+          <ClipboardDocumentListIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Failed to load</h3>
+          <p className="text-sm text-gray-500">{error}</p>
+        </Card>
+      ) : prescriptions.length === 0 ? (
         <Card variant="outlined" className="text-center py-12">
           <ClipboardDocumentListIcon className="mx-auto h-16 w-16 text-gray-300 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No Prescriptions Yet</h3>
@@ -91,7 +144,7 @@ const Prescriptions = () => {
                   <div className="flex items-center space-x-4 text-sm text-gray-600">
                     <div className="flex items-center">
                       <UserIcon className="w-4 h-4 mr-2" />
-                      {getDoctorName(prescription.doctorId)}
+                      {prescription.doctorName || '—'}
                     </div>
                     <div className="flex items-center">
                       <CalendarIcon className="w-4 h-4 mr-2" />
@@ -102,6 +155,7 @@ const Prescriptions = () => {
                 <button
                   onClick={() => handleDownload(prescription)}
                   className="inline-flex items-center px-4 py-2 border border-blue-300 rounded-lg text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 transition-colors"
+                  disabled={!prescription.ipfsHash}
                 >
                   <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
                   Download
@@ -112,23 +166,31 @@ const Prescriptions = () => {
               <div className="border-t border-gray-200 pt-4">
                 <h4 className="text-sm font-medium text-gray-900 mb-3">Medications:</h4>
                 <div className="space-y-3">
-                  {prescription.medications.map((medication, index) => (
+                  {prescription.medications.map((m, index) => (
                     <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <h5 className="font-medium text-gray-900 mb-2">{medication.name}</h5>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-gray-900">Item #{index + 1}{m.type ? ` • ${m.type}` : ''}</h5>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm text-gray-700">
                             <div>
-                              <span className="font-medium">Dosage:</span> {medication.dosage}
+                              <span className="font-medium">Name:</span> {m.name || '—'}
                             </div>
                             <div>
-                              <span className="font-medium">Frequency:</span> {medication.frequency}
+                              <span className="font-medium">Dosage:</span> {m.dosage || '—'}{m.unit ? ` ${m.unit}` : ''}
+                            </div>
+                            <div>
+                              <span className="font-medium">Frequency:</span> {m.frequency || '—'}
+                            </div>
+                            <div>
+                              <span className="font-medium">Duration:</span> {m.duration || '—'}
                             </div>
                           </div>
-                          {medication.instructions && (
-                            <div className="mt-2">
-                              <span className="text-sm font-medium text-gray-700">Instructions: </span>
-                              <span className="text-sm text-gray-600">{medication.instructions}</span>
+                          {m.instructions && (
+                            <div className="mt-2 text-sm text-gray-700">
+                              <span className="font-medium">Instructions: </span>
+                              <span className="text-gray-600">{m.instructions}</span>
                             </div>
                           )}
                         </div>
