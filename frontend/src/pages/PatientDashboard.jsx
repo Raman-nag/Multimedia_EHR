@@ -17,6 +17,7 @@ import {
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { useNavigate } from 'react-router-dom';
 import { getPatientContract } from '../utils/contract';
+import patientService from '../services/patientService';
 import { getProvider } from '../utils/web3';
 
 const PatientDashboard = () => {
@@ -26,6 +27,9 @@ const PatientDashboard = () => {
   const [networkStatus, setNetworkStatus] = useState('connected');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [accessRequests, setAccessRequests] = useState([]);
 
   useEffect(() => {
     const loadUserData = async () => {
@@ -67,34 +71,96 @@ const PatientDashboard = () => {
     loadUserData();
   }, []);
 
+  // Load on-chain data for records, prescriptions, and access once wallet is known
+  useEffect(() => {
+    if (!walletAddress) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [recRes, rxRes, accessRes] = await Promise.all([
+          patientService.getMyRecords(walletAddress).catch(() => ({ success: false, records: [] })),
+          patientService.getMyPrescriptions(walletAddress).catch(() => ({ success: false, prescriptions: [] })),
+          patientService.getAccessList().catch(() => ({ success: false, accessList: [] })),
+        ]);
+
+        if (cancelled) return;
+        const recs = Array.isArray(recRes?.records) ? recRes.records : [];
+        // Normalize to UI shape
+        const normalizedRecords = recs
+          .sort((a,b) => b.timestamp - a.timestamp)
+          .slice(0, 5)
+          .map(r => ({
+            id: r.id,
+            doctor: r.doctorName || (r.doctorAddress ? `${r.doctorAddress.slice(0,6)}...${r.doctorAddress.slice(-4)}` : '—'),
+            date: r.date,
+            type: r.diagnosis || 'Medical Record',
+            status: r.isActive ? 'completed' : 'pending',
+            hospital: '—',
+            ipfsHash: r.ipfsHash,
+          }));
+        setRecords(normalizedRecords);
+
+        const rx = Array.isArray(rxRes?.prescriptions) ? rxRes.prescriptions : [];
+        const normalizedRx = rx
+          .sort((a,b) => (new Date(b.date)) - (new Date(a.date)))
+          .map(p => ({
+            id: p.id,
+            medication: p.prescription || 'Prescription',
+            doctor: p.doctor || '—',
+            startDate: p.date || '—',
+            endDate: '—',
+            status: 'active',
+          }));
+        setPrescriptions(normalizedRx);
+
+        const access = Array.isArray(accessRes?.accessList) ? accessRes.accessList : [];
+        const normalizedAccess = access.map((a, idx) => ({
+          id: a.doctorAddress || String(idx),
+          provider: a.doctorAddress,
+          requestedBy: a.doctorAddress,
+          date: a.grantedAt ? new Date(Number(a.grantedAt) * 1000).toLocaleDateString() : '—',
+          status: a.isActive ? 'granted' : 'pending',
+        }));
+        setAccessRequests(normalizedAccess);
+      } catch (e) {
+        console.error('Failed loading patient dashboard data', e);
+        setRecords([]);
+        setPrescriptions([]);
+        setAccessRequests([]);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [walletAddress]);
+
   const stats = [
     {
       name: 'Medical Records',
-      value: '—',
-      change: `+${Math.floor(Math.random() * 5)} this month`,
+      value: String(records.length || 0),
+      change: '',
       icon: DocumentTextIcon,
       color: 'text-primary-600 dark:text-primary-400',
       bgColor: 'bg-primary-100 dark:bg-primary-900/20'
     },
     {
       name: 'Active Prescriptions',
-      value: '—',
-      change: `${Math.floor(Math.random() * 3)} expiring soon`,
+      value: String(prescriptions.length || 0),
+      change: '',
       icon: ClipboardDocumentListIcon,
       color: 'text-success-600 dark:text-success-400',
       bgColor: 'bg-success-100 dark:bg-success-900/20'
     },
     {
       name: 'Upcoming Appointments',
-    value: '—',
-      change: 'Next: Tomorrow',
+      value: '—',
+      change: '',
       icon: CalendarIcon,
       color: 'text-purple-600 dark:text-purple-400',
       bgColor: 'bg-purple-100 dark:bg-purple-900/20'
     },
     {
       name: 'Access Granted',
-      value: '5',
+      value: String(accessRequests.filter(a => a.status === 'granted').length),
       change: 'Healthcare providers',
       icon: KeyIcon,
       color: 'text-warning-600 dark:text-warning-400',
@@ -102,68 +168,11 @@ const PatientDashboard = () => {
     }
   ];
 
-  const recentRecords = [
-    {
-      id: 1,
-      doctor: 'Dr. Ravindra',
-      date: '03-11-2025',
-      type: 'Cardiology Consultation',
-      status: 'completed',
-      hospital: 'Tumkur City General Hospital'
-    },
-    {
-      id: 2,
-      doctor: 'Dr. Sushmita',
-      date: '27-10-2025',
-      type: 'General Check-up',
-      status: 'completed',
-      hospital: 'Aruna Hospital'
-    },
-    {
-      id: 3,
-      doctor: 'Dr. Mukta',
-      date: '01-11-2025',
-      type: 'Dermatology Visit',
-      status: 'pending',
-      hospital: 'Prahlad Skin Care Clinic'
-    }
-  ];
+  const recentRecords = records;
 
-  const activePrescriptions = [
-    {
-      id: 1,
-      medication: 'Lisinopril 10mg',
-      doctor: 'Dr. Ravindra',
-      startDate: '03-11-2025',
-      endDate: '06-11-2025',
-      status: 'expiring'
-    },
-    {
-      id: 2,
-      medication: 'Metformin 500mg',
-      doctor: 'Dr. SUshmita',
-      startDate: '27-10-2025',
-      endDate: '09-11-2025',
-      status: 'active'
-    }
-  ];
+  const activePrescriptions = prescriptions;
 
-  const accessRequests = [
-    {
-      id: 1,
-      provider: 'Narayana Eye care center',
-      requestedBy: 'Dr. Sharath',
-      date: '31-102025',
-      status: 'pending'
-    },
-    {
-      id: 2,
-      provider: 'Mysore govt hospital',
-      requestedBy: 'Dr.Gunavantha',
-      date: '22-10-2025',
-      status: 'granted'
-    }
-  ];
+  // accessRequests state is already populated from chain
 
   if (isLoading) {
     return (

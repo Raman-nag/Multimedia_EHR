@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/layout/DashboardLayout';
 import { 
@@ -11,103 +11,185 @@ import {
   ArrowRightIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
+import { useWeb3 } from '../contexts/Web3Context';
+import hospitalService from '../services/hospitalService';
+import doctorService from '../services/doctorService';
+import { getDoctorContract } from '../utils/contract';
 
 const DoctorDashboard = () => {
   const navigate = useNavigate();
-  
-  // Mock data for demonstration
-  const userProfile = {
-    firstName: 'Dr. Sarah',
-    lastName: 'Johnson',
-    role: 'Cardiologist',
-    licenseNumber: 'MD123456'
-  };
-  
-  const walletAddress = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-  const networkStatus = 'connected';
+  const { isConnected, account, connectWallet } = useWeb3();
+  const [userProfile, setUserProfile] = useState(null);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [networkStatus, setNetworkStatus] = useState('disconnected');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [patientsCount, setPatientsCount] = useState(0);
+  const [recordsCount, setRecordsCount] = useState(0);
+  const [prescriptionsCount, setPrescriptionsCount] = useState(0);
+  const [appointmentsCount, setAppointmentsCount] = useState(0);
+  const [recentRecords, setRecentRecords] = useState([]);
+  const [deniedCount, setDeniedCount] = useState(0);
+  const [recentPrescriptions, setRecentPrescriptions] = useState([]);
 
+  useEffect(() => {
+    if (!isConnected) {
+      connectWallet().catch(() => {});
+    }
+  }, [isConnected, connectWallet]);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      if (!account) return;
+      setLoading(true);
+      setError('');
+      try {
+        const res = await hospitalService.getDoctorByAddress(account);
+        if (!mounted) return;
+        if (res?.success && res?.doctor) {
+          const fullName = res.doctor.name || '';
+          const firstName = fullName.split(' ')[0] || '';
+          const lastName = fullName.split(' ').slice(1).join(' ') || '';
+          setUserProfile({
+            firstName,
+            lastName,
+            role: res.doctor.specialization || '',
+            licenseNumber: res.doctor.licenseNumber || ''
+          });
+        } else {
+          setUserProfile({ firstName: '', lastName: '', role: '', licenseNumber: '' });
+        }
+        setWalletAddress(account);
+        setNetworkStatus(isConnected ? 'connected' : 'disconnected');
+
+        // Load doctor stats and recent records from blockchain
+        const patientsRes = await doctorService.getMyPatients();
+        if (patientsRes?.success) {
+          const pts = patientsRes.patients || [];
+          setPatientsCount(pts.length);
+
+          // Aggregate records across patients, but only those created by this doctor
+          const allRecords = [];
+          let denied = 0;
+          for (const p of pts.slice(0, 25)) { // cap to avoid long loops
+            try {
+              const hist = await doctorService.getPatientHistory(p.walletAddress);
+              if (hist?.success && Array.isArray(hist.records)) {
+                const mine = hist.records.filter(r => (r.doctorAddress || '').toLowerCase() === account.toLowerCase());
+                allRecords.push(...mine);
+              }
+            } catch (err) {
+              denied += 1;
+            }
+          }
+          // Total records created by this doctor
+          setRecordsCount(allRecords.length);
+          allRecords.sort((a, b) => b.timestamp - a.timestamp);
+          setRecentRecords(allRecords.slice(0, 5));
+          setDeniedCount(denied);
+        }
+
+        // Load prescriptions authored by this doctor directly from chain (no cache)
+        try {
+          const pres = await doctorService.getDoctorPrescriptions(account, 1000);
+          if (pres?.success) {
+            setPrescriptionsCount(pres.count);
+            setRecentPrescriptions((pres.prescriptions || []).slice(0, 5));
+          } else {
+            setPrescriptionsCount(0);
+            setRecentPrescriptions([]);
+          }
+        } catch {
+          setPrescriptionsCount(0);
+          setRecentPrescriptions([]);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || 'Failed to load doctor data');
+        setUserProfile({ firstName: '', lastName: '', role: '', licenseNumber: '' });
+        setWalletAddress(account || '');
+        setNetworkStatus(isConnected ? 'connected' : 'disconnected');
+      }
+      setLoading(false);
+    };
+    load();
+    return () => { mounted = false; };
+  }, [account, isConnected]);
+
+  // Subscribe to on-chain RecordCreated events to refresh prescriptions in real time
+  useEffect(() => {
+    if (!account) return;
+    let contract;
+    let active = true;
+    const setup = async () => {
+      try {
+        contract = await getDoctorContract();
+        const handler = async (recordId, patientAddress, doctorAddress) => {
+          try {
+            if (!active) return;
+            if ((doctorAddress || '').toLowerCase() !== account.toLowerCase()) return;
+            // Re-fetch prescriptions count/list live
+            const pres = await doctorService.getDoctorPrescriptions(account, 1000);
+            if (!active) return;
+            if (pres?.success) {
+              setPrescriptionsCount(pres.count);
+              setRecentPrescriptions((pres.prescriptions || []).slice(0, 5));
+            }
+          } catch {}
+        };
+        contract.on('RecordCreated', handler);
+        return () => {
+          if (contract) {
+            try { contract.off('RecordCreated', handler); } catch {}
+          }
+          active = false;
+        };
+      } catch {
+      }
+    };
+    const cleanupPromise = setup();
+    return () => {
+      Promise.resolve(cleanupPromise).then((cleanup) => {
+        if (typeof cleanup === 'function') cleanup();
+      });
+    };
+  }, [account]);
   const stats = [
     {
       name: 'My Patients',
-      value: '156',
-      change: '+3 this week',
+      value: String(patientsCount),
+      change: '',
       icon: HeartIcon,
       color: 'text-green-600',
       bgColor: 'bg-green-100'
     },
     {
       name: 'Records Created',
-      value: '1,247',
-      change: '+12 this month',
+      value: String(recordsCount),
+      change: '',
       icon: DocumentTextIcon,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100'
     },
     {
       name: 'Prescriptions',
-      value: '892',
-      change: '+8 this week',
+      value: String(prescriptionsCount),
+      change: '',
       icon: ClipboardDocumentListIcon,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100'
     },
     {
       name: 'Appointments',
-      value: '24',
-      change: 'Today\'s schedule',
+      value: String(appointmentsCount),
+      change: '',
       icon: CalendarIcon,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100'
     }
   ];
 
-  // const upcomingAppointments = [
-  //   {
-  //     id: 1,
-  //     patient: 'John Doe',
-  //     time: '9:00 AM',
-  //     type: 'Follow-up',
-  //     status: 'confirmed'
-  //   },
-  //   {
-  //     id: 2,
-  //     patient: 'Jane Smith',
-  //     time: '10:30 AM',
-  //     type: 'Consultation',
-  //     status: 'confirmed'
-  //   },
-  //   {
-  //     id: 3,
-  //     patient: 'Mike Johnson',
-  //     time: '2:00 PM',
-  //     type: 'Check-up',
-  //     status: 'pending'
-  //   }
-  // ];
-
-  const recentRecords = [
-    {
-      id: 1,
-      patient: 'Raman Nag N',
-      date: '25-10-2025',
-      type: 'Cardiology Consultation',
-      status: 'completed'
-    },
-    {
-      id: 2,
-      patient: 'Sai venkatesh',
-      date: '26-10-2025',
-      type: 'Follow-up Visit',
-      status: 'completed'
-    },
-    {
-      id: 3,
-      patient: 'Sharan',
-      date: '2024-01-13',
-      type: 'Initial Consultation',
-      status: 'pending'
-    }
-  ];
 
   return (
     <DashboardLayout 
@@ -129,6 +211,37 @@ const DoctorDashboard = () => {
             <div className="bg-white bg-opacity-20 rounded-full p-4">
               <UserIcon className="h-12 w-12" />
             </div>
+          </div>
+        </div>
+
+        {/* Recent Prescriptions (live) */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Recent Prescriptions</h2>
+          </div>
+          <div className="p-6">
+            {recentPrescriptions.length > 0 ? (
+              <div className="space-y-4">
+                {recentPrescriptions.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div>
+                      <p className="font-medium text-gray-900">{p.patientAddress}</p>
+                      <p className="text-sm text-gray-500">{p.prescription?.slice(0, 100) || '—'}</p>
+                      <p className="text-xs text-gray-400">{p.date}</p>
+                    </div>
+                    {p.ipfsHash ? (
+                      <a className="text-sm text-blue-600 hover:underline" href={`https://ipfs.io/ipfs/${p.ipfsHash}`} target="_blank" rel="noreferrer">IPFS</a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <ClipboardDocumentListIcon className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No prescriptions yet</h3>
+                <p className="mt-1 text-sm text-gray-500">Write a prescription to see it here.</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -247,7 +360,7 @@ const DoctorDashboard = () => {
           </div> */}
         </div>
 
-        {/* Recent Records */}
+        {/* Recent Records (from blockchain) */}
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Recent Medical Records</h2>
@@ -260,18 +373,14 @@ const DoctorDashboard = () => {
                     <div className="flex items-center">
                       <DocumentTextIcon className="h-8 w-8 text-blue-500 mr-4" />
                       <div>
-                        <p className="font-medium text-gray-900">{record.patient}</p>
-                        <p className="text-sm text-gray-500">{record.type}</p>
+                        <p className="font-medium text-gray-900">{record.patientAddress}</p>
+                        <p className="text-sm text-gray-500">{record.diagnosis}</p>
                         <p className="text-xs text-gray-400">{record.date}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        record.status === 'completed' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {record.status}
+                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                        {record.doctorName}
                       </span>
                       <ArrowRightIcon className="h-4 w-4 text-gray-400" />
                     </div>
