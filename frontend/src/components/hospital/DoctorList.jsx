@@ -14,6 +14,7 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import Modal from '../common/Modal';
+import hospitalService from '../../services/hospitalService';
 
 const DoctorList = () => {
   const [doctors, setDoctors] = useState([]);
@@ -23,76 +24,45 @@ const DoctorList = () => {
   const [specialtyFilter, setSpecialtyFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [selectedLoading, setSelectedLoading] = useState(false);
+  const [selectedStats, setSelectedStats] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [doctorToDelete, setDoctorToDelete] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Mock data - replace with actual API calls
-  const mockDoctors = [
-    {
-      id: 'doc_001',
-      firstName: 'Dr. Sarah',
-      lastName: 'Johnson',
-      email: 'sarah.johnson@citygeneral.com',
-      phone: '+1 (555) 234-5678',
-      specialty: 'Cardiology',
-      licenseNumber: 'MD-2024-001',
-      walletAddress: '0x8ba1f109551bD432803012645Hac136c',
-      status: 'Active',
-      totalPatients: 89,
-      totalRecords: 234,
-      experience: 12,
-      rating: 4.9,
-      joinDate: '2023-01-15'
-    },
-    {
-      id: 'doc_002',
-      firstName: 'Dr. Michael',
-      lastName: 'Chen',
-      email: 'michael.chen@citygeneral.com',
-      phone: '+1 (555) 345-6789',
-      specialty: 'Neurology',
-      licenseNumber: 'MD-2024-002',
-      walletAddress: '0x9ba1f109551bD432803012645Hac136d',
-      status: 'Active',
-      totalPatients: 67,
-      totalRecords: 189,
-      experience: 8,
-      rating: 4.7,
-      joinDate: '2023-03-20'
-    },
-    {
-      id: 'doc_003',
-      firstName: 'Dr. Emily',
-      lastName: 'Rodriguez',
-      email: 'emily.rodriguez@citygeneral.com',
-      phone: '+1 (555) 456-7890',
-      specialty: 'Pediatrics',
-      licenseNumber: 'MD-2024-003',
-      walletAddress: '0xaba1f109551bD432803012645Hac136e',
-      status: 'Inactive',
-      totalPatients: 45,
-      totalRecords: 123,
-      experience: 6,
-      rating: 4.8,
-      joinDate: '2023-06-10'
-    },
-    {
-      id: 'doc_004',
-      firstName: 'Dr. James',
-      lastName: 'Wilson',
-      email: 'james.wilson@citygeneral.com',
-      phone: '+1 (555) 567-8901',
-      specialty: 'Orthopedics',
-      licenseNumber: 'MD-2024-004',
-      walletAddress: '0xbba1f109551bD432803012645Hac136f',
-      status: 'Active',
-      totalPatients: 78,
-      totalRecords: 201,
-      experience: 15,
-      rating: 4.9,
-      joinDate: '2022-11-05'
-    }
-  ];
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const resp = await hospitalService.getDoctors();
+        const list = Array.isArray(resp?.doctors) ? resp.doctors : [];
+        const normalized = list.map((d, idx) => ({
+          id: d.walletAddress || `doc_${idx}`,
+          fullName: d.name || '',
+          specialty: d.specialization || '',
+          licenseNumber: d.licenseNumber || '',
+          walletAddress: d.walletAddress,
+          status: d.isActive ? 'Active' : 'Inactive',
+          totalPatients: 0,
+          totalRecords: 0,
+        }));
+        if (!mounted) return;
+        setDoctors(normalized);
+        setFilteredDoctors(normalized);
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || 'Failed to load doctors');
+        setDoctors([]);
+        setFilteredDoctors([]);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
   const specialties = [
     'All Specialties',
@@ -108,18 +78,12 @@ const DoctorList = () => {
   ];
 
   useEffect(() => {
-    setDoctors(mockDoctors);
-    setFilteredDoctors(mockDoctors);
-  }, []);
-
-  useEffect(() => {
     let filtered = doctors;
 
     // Search filter
     if (searchQuery) {
       filtered = filtered.filter(doctor =>
-        `${doctor.firstName} ${doctor.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        doctor.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (doctor.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         doctor.licenseNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         doctor.specialty.toLowerCase().includes(searchQuery.toLowerCase())
       );
@@ -146,8 +110,38 @@ const DoctorList = () => {
     setSearchQuery('');
   };
 
-  const handleViewDoctor = (doctor) => {
-    setSelectedDoctor(doctor);
+  const handleViewDoctor = async (doctor) => {
+    setSelectedDoctor({ ...doctor });
+    setSelectedLoading(true);
+    setSelectedStats(null);
+    try {
+      const resp = await hospitalService.getDoctorDetailsWithStats(doctor.walletAddress);
+      if (resp?.success) {
+        const d = resp.doctor || {};
+        const stats = resp.stats || {};
+        // Normalize into our modal state
+        setSelectedDoctor(prev => ({
+          ...(prev || {}),
+          fullName: d.name || prev?.fullName || '',
+          specialty: d.specialization || prev?.specialty || '',
+          licenseNumber: d.licenseNumber || prev?.licenseNumber || '',
+          walletAddress: doctor.walletAddress,
+          status: (typeof d.isActive === 'boolean' ? (d.isActive ? 'Active' : 'Inactive') : prev?.status) || 'Active',
+          registeredAt: d.timestamp ? new Date(Number(d.timestamp) * 1000).toLocaleString() : undefined,
+          hospitalAddress: d.hospitalAddress,
+        }));
+        setSelectedStats({
+          patientsCount: stats.patientsCount || 0,
+          recordsCount: stats.recordsCount || 0,
+          prescriptionsCount: stats.prescriptionsCount || 0,
+          lastRecordAt: stats.lastRecordAt ? new Date(Number(stats.lastRecordAt) * 1000).toLocaleString() : undefined,
+        });
+      }
+    } catch (e) {
+      // leave basic data
+    } finally {
+      setSelectedLoading(false);
+    }
   };
 
   const handleEditDoctor = (doctor) => {
@@ -272,6 +266,9 @@ const DoctorList = () => {
         
         <Card.Content>
           <div className="overflow-x-auto">
+            {loading && (
+              <div className="py-8 text-center text-gray-500 dark:text-gray-400">Loading doctors...</div>
+            )}
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
@@ -299,7 +296,7 @@ const DoctorList = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredDoctors.map((doctor) => (
+                {!loading && filteredDoctors.map((doctor) => (
                   <tr key={doctor.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -310,10 +307,7 @@ const DoctorList = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {doctor.firstName} {doctor.lastName}
-                          </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {doctor.email}
+                            {doctor.fullName || '—'}
                           </div>
                         </div>
                       </div>
@@ -355,7 +349,7 @@ const DoctorList = () => {
                           onClick={() => handleViewDoctor(doctor)}
                           icon={<EyeIcon className="w-4 h-4" />}
                         >
-                          View
+                          View Details
                         </Button>
                         <Button
                           variant="ghost"
@@ -381,7 +375,7 @@ const DoctorList = () => {
               </tbody>
             </table>
 
-            {filteredDoctors.length === 0 && (
+            {!loading && filteredDoctors.length === 0 && (
               <div className="text-center py-12">
                 <UserIcon className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -393,6 +387,9 @@ const DoctorList = () => {
                     : 'Get started by adding a new doctor to the system.'
                   }
                 </p>
+                {error && (
+                  <p className="mt-2 text-sm text-red-600">{error}</p>
+                )}
               </div>
             )}
           </div>
@@ -404,84 +401,109 @@ const DoctorList = () => {
         isOpen={!!selectedDoctor}
         onClose={() => setSelectedDoctor(null)}
         title="Doctor Details"
-        size="lg"
+        size="4xl"
       >
         {selectedDoctor && (
-          <div className="space-y-6">
-            <div className="flex items-center space-x-4">
-              <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                <UserIcon className="h-8 w-8 text-white" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {selectedDoctor.firstName} {selectedDoctor.lastName}
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedDoctor.specialty}
-                </p>
-                {getStatusBadge(selectedDoctor.status)}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Email
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {selectedDoctor.email}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Phone
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {selectedDoctor.phone}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  License Number
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {selectedDoctor.licenseNumber}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Experience
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white">
-                  {selectedDoctor.experience} years
-                </p>
-              </div>
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Wallet Address
-                </label>
-                <p className="text-sm text-gray-900 dark:text-white font-mono">
-                  {selectedDoctor.walletAddress}
-                </p>
+          <div className="space-y-8">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                  <UserIcon className="h-8 w-8 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-3">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {selectedDoctor.fullName || '—'}
+                    </h3>
+                    {getStatusBadge(selectedDoctor.status || 'Active')}
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {selectedDoctor.specialty || '—'}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Total Patients
-                </label>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {selectedDoctor.totalPatients}
-                </p>
+            {selectedLoading ? (
+              <div className="py-10 text-center text-sm text-gray-500">Loading latest profile…</div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Profile Section */}
+                <div className="space-y-5">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Profile</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Doctor ID</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{selectedDoctor.licenseNumber || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Specialist</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{selectedDoctor.specialty || '—'}</div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Wallet Address</div>
+                      <div className="mt-1 flex items-center justify-between rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                        <div className="text-xs sm:text-sm font-mono break-all max-w-full pr-3">{selectedDoctor.walletAddress}</div>
+                        <button
+                          onClick={() => navigator.clipboard?.writeText?.(selectedDoctor.walletAddress || '')}
+                          className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Hospital</div>
+                      <div className="mt-1 flex items-center justify-between rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2">
+                        <div className="text-xs sm:text-sm font-mono break-all max-w-full pr-3">{selectedDoctor.hospitalAddress || '—'}</div>
+                        {selectedDoctor.hospitalAddress && (
+                          <button
+                            onClick={() => navigator.clipboard?.writeText?.(selectedDoctor.hospitalAddress || '')}
+                            className="text-xs px-2 py-1 rounded bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600"
+                          >
+                            Copy
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Activity Section */}
+                <div className="space-y-5">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Activity</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Registered At</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{selectedDoctor.registeredAt || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Last Activity</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{selectedStats?.lastRecordAt || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Status</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{selectedDoctor.status || 'Active'}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Total Records
-                </label>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {selectedDoctor.totalRecords}
-                </p>
+            )}
+
+            {/* Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 border rounded-lg bg-white dark:bg-gray-900">
+                <div className="text-xs text-gray-500">Patients</div>
+                <div className="mt-1 text-2xl font-semibold">{selectedStats?.patientsCount ?? 0}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-white dark:bg-gray-900">
+                <div className="text-xs text-gray-500">Records Created</div>
+                <div className="mt-1 text-2xl font-semibold">{selectedStats?.recordsCount ?? 0}</div>
+              </div>
+              <div className="p-4 border rounded-lg bg-white dark:bg-gray-900">
+                <div className="text-xs text-gray-500">Prescriptions</div>
+                <div className="mt-1 text-2xl font-semibold">{selectedStats?.prescriptionsCount ?? 0}</div>
               </div>
             </div>
           </div>

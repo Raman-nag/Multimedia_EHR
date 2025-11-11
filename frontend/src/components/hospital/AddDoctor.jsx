@@ -64,7 +64,6 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
     if (!formData.licenseNumber.trim()) {
       newErrors.licenseNumber = 'License number is required';
     }
-
     // Optional fields (for display/info only)
     if (formData.firstName.trim() || formData.lastName.trim()) {
       if (!formData.firstName.trim()) {
@@ -79,13 +78,13 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Universal input change handler for ALL input fields
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -97,24 +96,19 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
     setErrors({});
-    
+
     try {
       // Register doctor on blockchain
       const result = await hospitalService.registerDoctor(
         formData.walletAddress,
         formData.licenseNumber
       );
-
       if (result.success) {
         showSuccess('Doctor registered successfully on blockchain!');
-        
         // Doctor can update their profile later with name and specialization
         const doctorData = {
           ...result.doctor,
@@ -127,7 +121,6 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
           qualifications: formData.qualifications,
           bio: formData.bio
         };
-
         onDoctorAdded(doctorData);
       } else {
         throw new Error(result.error || 'Failed to register doctor');
@@ -160,7 +153,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
             <Icon className="h-5 w-5 text-gray-400" />
           </div>
         )}
-        
+
         {options ? (
           <select
             name={name}
@@ -188,13 +181,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
             type={type}
             name={name}
             value={formData[name] ?? ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              setFormData(prev => ({ ...prev, [name]: v }));
-              if (errors[name]) {
-                setErrors(prev => ({ ...prev, [name]: '' }));
-              }
-            }}
+            onChange={handleInputChange}
             placeholder={placeholder}
             className={`
               block w-full rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
@@ -205,10 +192,10 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
               }
               py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white
             `}
+            autoComplete="off"
           />
         )}
       </div>
-      
       {errors[name] && (
         <div className="flex items-center space-x-1 text-red-600 text-sm">
           <ExclamationTriangleIcon className="h-4 w-4" />
@@ -234,13 +221,12 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
         {/* Personal Information */}
         <div className="space-y-4">
           <h4 className="text-md font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
             Personal Information
           </h4>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputField
               name="firstName"
@@ -257,7 +243,6 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
               required
             />
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputField
               name="email"
@@ -283,7 +268,6 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
           <h4 className="text-md font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
             Professional Information
           </h4>
-          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputField
               name="specialty"
@@ -299,7 +283,6 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
               required
             />
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <InputField
               name="experience"
@@ -316,13 +299,11 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
               required
             />
           </div>
-
           <InputField
             name="qualifications"
             label="Qualifications"
             placeholder="MD, PhD, Board Certified..."
           />
-
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Bio
@@ -334,6 +315,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
               placeholder="Brief professional biography..."
               rows={3}
               className="block w-full rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 px-4 py-2.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-colors focus:outline-none"
+              autoComplete="off"
             />
           </div>
         </div>

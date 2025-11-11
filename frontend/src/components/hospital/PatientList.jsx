@@ -12,6 +12,7 @@ import Card from '../common/Card';
 import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import Modal from '../common/Modal';
+import hospitalService from '../../services/hospitalService';
 
 const PatientList = () => {
   const [patients, setPatients] = useState([]);
@@ -21,108 +22,49 @@ const PatientList = () => {
   const [dateFilter, setDateFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Set initial mock data
-    setPatients(mockPatients);
-    setFilteredPatients(mockPatients);
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const resp = await hospitalService.getPatients();
+        const list = Array.isArray(resp.patients) ? resp.patients : [];
+        const transformed = list.map((p, idx) => ({
+          id: p.walletAddress || `pat_${idx}`,
+          firstName: (p.name || '').split(' ')[0] || (p.walletAddress ? p.walletAddress.slice(0,6) : ''),
+          lastName: (p.name || '').split(' ').slice(1).join(' '),
+          patientId: (p.walletAddress || '').slice(0,6) + '...' + (p.walletAddress || '').slice(-4),
+          email: '',
+          phone: '',
+          dateOfBirth: p.dateOfBirth || '',
+          gender: '',
+          bloodType: p.bloodGroup || '',
+          lastVisitDate: p.lastVisitDate || '',
+          assignedDoctor: p.assignedDoctorName || '',
+          doctorId: p.assignedDoctorAddress || '',
+          totalRecords: p.totalRecords || 0,
+          status: p.isActive ? 'Active' : 'Inactive',
+          emergencyContact: { name: '', relationship: '', phone: '' },
+        }));
+        if (!mounted) return;
+        setPatients(transformed);
+        setFilteredPatients(transformed);
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || 'Failed to load patients');
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  // Mock data - replace with actual API calls
-  const mockPatients = [
-    {
-      id: 'pat_001',
-      firstName: 'John',
-      lastName: 'Doe',
-      patientId: 'PAT-001',
-      email: 'john.doe@email.com',
-      phone: '+1 (555) 345-6789',
-      dateOfBirth: '1985-03-15',
-      gender: 'Male',
-      bloodType: 'O+',
-      lastVisitDate: '2024-03-10',
-      assignedDoctor: 'Dr. Sarah Johnson',
-      doctorId: 'doc_001',
-      totalRecords: 15,
-      status: 'Active',
-      emergencyContact: {
-        name: 'Jane Doe',
-        relationship: 'Spouse',
-        phone: '+1 (555) 456-7890'
-      }
-    },
-    {
-      id: 'pat_002',
-      firstName: 'Alice',
-      lastName: 'Smith',
-      patientId: 'PAT-002',
-      email: 'alice.smith@email.com',
-      phone: '+1 (555) 456-7890',
-      dateOfBirth: '1990-07-22',
-      gender: 'Female',
-      bloodType: 'A+',
-      lastVisitDate: '2024-03-08',
-      assignedDoctor: 'Dr. Michael Chen',
-      doctorId: 'doc_002',
-      totalRecords: 8,
-      status: 'Active',
-      emergencyContact: {
-        name: 'Bob Smith',
-        relationship: 'Brother',
-        phone: '+1 (555) 567-8901'
-      }
-    },
-    {
-      id: 'pat_003',
-      firstName: 'Robert',
-      lastName: 'Johnson',
-      patientId: 'PAT-003',
-      email: 'robert.johnson@email.com',
-      phone: '+1 (555) 567-8901',
-      dateOfBirth: '1978-12-05',
-      gender: 'Male',
-      bloodType: 'B-',
-      lastVisitDate: '2024-02-28',
-      assignedDoctor: 'Dr. Emily Rodriguez',
-      doctorId: 'doc_003',
-      totalRecords: 23,
-      status: 'Active',
-      emergencyContact: {
-        name: 'Mary Johnson',
-        relationship: 'Wife',
-        phone: '+1 (555) 678-9012'
-      }
-    },
-    {
-      id: 'pat_004',
-      firstName: 'Lisa',
-      lastName: 'Brown',
-      patientId: 'PAT-004',
-      email: 'lisa.brown@email.com',
-      phone: '+1 (555) 678-9012',
-      dateOfBirth: '1992-05-18',
-      gender: 'Female',
-      bloodType: 'AB+',
-      lastVisitDate: '2024-03-12',
-      assignedDoctor: 'Dr. James Wilson',
-      doctorId: 'doc_004',
-      totalRecords: 12,
-      status: 'Active',
-      emergencyContact: {
-        name: 'David Brown',
-        relationship: 'Father',
-        phone: '+1 (555) 789-0123'
-      }
-    }
-  ];
 
-  const doctors = [
-    'All Doctors',
-    'Dr. Sarah Johnson',
-    'Dr. Michael Chen',
-    'Dr. Emily Rodriguez',
-    'Dr. James Wilson'
-  ];
+  const [doctors, setDoctors] = useState(['All Doctors']);
 
   const dateRanges = [
     'All Dates',
@@ -134,9 +76,20 @@ const PatientList = () => {
   ];
 
   useEffect(() => {
-    setPatients(mockPatients);
-    setFilteredPatients(mockPatients);
+    let mounted = true;
+    (async () => {
+      try {
+        const resp = await hospitalService.getDoctors();
+        const list = Array.isArray(resp.doctors) ? resp.doctors : [];
+        const names = ['All Doctors', ...list.map(d => d.name && d.name.trim().length > 0 ? d.name : (d.walletAddress ? d.walletAddress.slice(0,6)+'...'+d.walletAddress.slice(-4) : 'Doctor'))];
+        if (mounted) setDoctors(names);
+      } catch {
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
+
+  
 
   useEffect(() => {
     let filtered = patients;
@@ -326,6 +279,9 @@ const PatientList = () => {
         
         <Card.Body>
           <div className="overflow-x-auto">
+            {loading && (
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">Loading patients...</div>
+            )}
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
@@ -353,7 +309,7 @@ const PatientList = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredPatients.map((patient) => (
+                {!loading && filteredPatients.map((patient) => (
                   <tr key={patient.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -380,13 +336,13 @@ const PatientList = () => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-white">
                         <CalendarIcon className="h-4 w-4 mr-2 text-gray-400" />
-                        {formatDate(patient.lastVisitDate)}
+                        {patient.lastVisitDate ? formatDate(patient.lastVisitDate) : '—'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900 dark:text-white">
                         <UserGroupIcon className="h-4 w-4 mr-2 text-gray-400" />
-                        {patient.assignedDoctor}
+                        {patient.assignedDoctor || '—'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -417,7 +373,7 @@ const PatientList = () => {
               </tbody>
             </table>
 
-            {filteredPatients.length === 0 && (
+            {!loading && filteredPatients.length === 0 && (
               <div className="text-center py-12">
                 <UserIcon className="mx-auto h-12 w-12 text-gray-400" />
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -429,6 +385,9 @@ const PatientList = () => {
                     : 'No patients are currently registered in the system.'
                   }
                 </p>
+                {error && (
+                  <p className="mt-2 text-sm text-red-600">{error}</p>
+                )}
               </div>
             )}
           </div>

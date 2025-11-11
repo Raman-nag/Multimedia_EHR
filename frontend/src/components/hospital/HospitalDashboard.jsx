@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   UserGroupIcon, 
   UserIcon, 
@@ -17,51 +18,49 @@ import Modal from '../common/Modal';
 import AddDoctor from './AddDoctor';
 import DoctorList from './DoctorList';
 import PatientList from './PatientList';
-import { mockStats, mockUsers } from '../../data/mockData';
+import hospitalService from '../../services/hospitalService';
 
 const HospitalDashboard = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('overview');
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [recentActivity, setRecentActivity] = useState([]);
-
-  // Mock data - replace with actual API calls
-  const stats = mockStats.hospital;
-  const hospital = mockUsers.hospital;
+  const [stats, setStats] = useState({ totalDoctors: 0, totalPatients: 0, totalRecords: 0, successRate: 100 });
+  const [hospital, setHospital] = useState({ name: '' });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Simulate recent activity data
-    setRecentActivity([
-      {
-        id: 1,
-        type: 'doctor_added',
-        message: 'Dr. Sarah Johnson joined the hospital',
-        timestamp: '2 hours ago',
-        icon: '👨‍⚕️'
-      },
-      {
-        id: 2,
-        type: 'patient_visit',
-        message: 'New patient record created for John Doe',
-        timestamp: '4 hours ago',
-        icon: '👤'
-      },
-      {
-        id: 3,
-        type: 'record_updated',
-        message: 'Medical record updated for Patient ID: PAT-001',
-        timestamp: '6 hours ago',
-        icon: '📋'
-      },
-      {
-        id: 4,
-        type: 'prescription',
-        message: 'New prescription issued by Dr. Johnson',
-        timestamp: '8 hours ago',
-        icon: '💊'
+    let mounted = true;
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [details, activity] = await Promise.all([
+          hospitalService.getHospitalDetails().catch(() => null),
+          hospitalService.getRecentActivity().catch(() => ({ activities: [], stats: { totalDoctors: 0, totalPatients: 0, totalRecords: 0 } })),
+        ]);
+        if (!mounted) return;
+        if (details && details.hospital) setHospital(details.hospital);
+        if (activity) {
+          setRecentActivity(activity.activities || []);
+          setStats({
+            totalDoctors: activity.stats?.totalDoctors || 0,
+            totalPatients: activity.stats?.totalPatients || 0,
+            totalRecords: activity.stats?.totalRecords || 0,
+            successRate: 100,
+          });
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setError(e?.message || 'Failed to load dashboard');
+      } finally {
+        if (mounted) setLoading(false);
       }
-    ]);
+    })();
+    return () => { mounted = false; };
   }, []);
 
   const handleAddDoctor = () => {
@@ -75,7 +74,7 @@ const HospitalDashboard = () => {
   const handleDoctorAdded = (doctorData) => {
     console.log('New doctor added:', doctorData);
     setShowAddDoctorModal(false);
-    // Here you would typically refresh the doctor list
+    navigate('/hospital/doctors');
   };
 
   const tabs = [
@@ -93,7 +92,7 @@ const HospitalDashboard = () => {
             Hospital Dashboard
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Welcome to {hospital.name} - Manage doctors, patients, and medical records
+            Welcome to {hospital?.name || 'Hospital'} - Manage doctors, patients, and medical records
           </p>
         </div>
 
@@ -223,11 +222,17 @@ const HospitalDashboard = () => {
               </Card.Header>
               <Card.Content>
                 <div className="space-y-4">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
+                  {loading && (
+                    <div className="py-6 text-center text-gray-500 dark:text-gray-400">Loading activity...</div>
+                  )}
+                  {!loading && recentActivity.length === 0 && (
+                    <div className="py-6 text-center text-gray-500 dark:text-gray-400">No recent on-chain activity found.</div>
+                  )}
+                  {!loading && recentActivity.map((activity, idx) => (
+                    <div key={idx} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                       <div className="flex-shrink-0">
                         <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                          <span className="text-sm">{activity.icon}</span>
+                          <span className="text-sm">{activity.type === 'doctor_registered' ? '👨‍⚕️' : '📋'}</span>
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -235,11 +240,14 @@ const HospitalDashboard = () => {
                           {activity.message}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {activity.timestamp}
+                          {new Date((activity.timestamp || 0) * 1000).toLocaleString()}
                         </p>
                       </div>
                     </div>
                   ))}
+                  {error && (
+                    <div className="text-center text-red-600 text-sm">{error}</div>
+                  )}
                 </div>
               </Card.Content>
             </Card>
