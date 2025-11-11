@@ -239,6 +239,23 @@ contract DoctorManagement is Ownable, ReentrancyGuard, AccessControl {
         return medicalRecords[recordId];
     }
 
+    /**
+     * @dev Public helper to check if a doctor is associated with a patient
+     */
+    function hasDoctorPatient(address doctor, address patient)
+        external
+        view
+        returns (bool)
+    {
+        address[] memory patients = doctorPatients[doctor];
+        for (uint i = 0; i < patients.length; i++) {
+            if (patients[i] == patient) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     // ===============================
     // Internal Helpers
     // ===============================

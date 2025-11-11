@@ -30,6 +30,10 @@ contract PatientManagement is Ownable, ReentrancyGuard {
     mapping(address => Patient) public patients;
     mapping(address => mapping(address => AccessPermission)) public accessPermissions;
     mapping(address => bool) public registeredPatients;
+    // Pending requests: patient => doctor => pending?
+    mapping(address => mapping(address => bool)) public pendingRequests;
+    // Non-compact list of doctors who requested for a patient (UI can filter by pendingRequests flag)
+    mapping(address => address[]) private pendingDoctors;
     
     // Interface references
     DoctorManagement public doctorManagement;
@@ -46,6 +50,16 @@ contract PatientManagement is Ownable, ReentrancyGuard {
     event AccessRevoked(
         address indexed patientAddress,
         address indexed revokedFrom
+    );
+    event AccessRequested(
+        address indexed patientAddress,
+        address indexed doctorAddress,
+        uint256 requestedAt
+    );
+    event AccessRequestCancelled(
+        address indexed patientAddress,
+        address indexed doctorAddress,
+        uint256 cancelledAt
     );
     event PatientDeactivated(address indexed patientAddress);
 
@@ -124,6 +138,11 @@ contract PatientManagement is Ownable, ReentrancyGuard {
             isActive: true
         });
 
+        // Clear pending request if any
+        if (pendingRequests[msg.sender][addressToGrant]) {
+            pendingRequests[msg.sender][addressToGrant] = false;
+        }
+
         emit AccessGranted(msg.sender, addressToGrant);
     }
 
@@ -144,6 +163,44 @@ contract PatientManagement is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Doctor requests access to a patient's data
+     */
+    function requestAccess(address patient) external nonReentrant {
+        require(patient != address(0), "Invalid patient");
+        require(!accessPermissions[patient][msg.sender].isActive, "Already has access");
+        require(!pendingRequests[patient][msg.sender], "Already requested");
+
+        pendingRequests[patient][msg.sender] = true;
+        pendingDoctors[patient].push(msg.sender);
+        emit AccessRequested(patient, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev Doctor cancels a pending request
+     */
+    function cancelRequest(address patient) external nonReentrant {
+        require(pendingRequests[patient][msg.sender], "No request");
+        pendingRequests[patient][msg.sender] = false;
+        emit AccessRequestCancelled(patient, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @dev Patient rejects a pending request from a doctor
+     */
+    function rejectRequest(address doctor) external nonReentrant onlyPatient {
+        require(pendingRequests[msg.sender][doctor], "No request");
+        pendingRequests[msg.sender][doctor] = false;
+        emit AccessRequestCancelled(msg.sender, doctor, block.timestamp);
+    }
+
+    /**
+     * @dev Get pending request doctors for a patient (may include historical entries; UI filters with pendingRequests flag)
+     */
+    function getPendingRequests(address patient) external view returns (address[] memory) {
+        return pendingDoctors[patient];
+    }
+
+    /**
      * @dev Check if an address has access to patient data
      */
     function hasAccess(address requester, address patient) 
@@ -151,7 +208,17 @@ contract PatientManagement is Ownable, ReentrancyGuard {
         view 
         returns (bool) 
     {
-        return accessPermissions[patient][requester].isActive;
+        bool direct = accessPermissions[patient][requester].isActive;
+        bool linkedDoctor = false;
+        // If DoctorManagement is set, allow doctors linked to the patient
+        if (address(doctorManagement) != address(0)) {
+            try doctorManagement.hasDoctorPatient(requester, patient) returns (bool ok) {
+                linkedDoctor = ok;
+            } catch {
+                linkedDoctor = false;
+            }
+        }
+        return direct || linkedDoctor;
     }
 
     /**
@@ -168,11 +235,16 @@ contract PatientManagement is Ownable, ReentrancyGuard {
             bool isActive
         ) 
     {
-        require(
-            msg.sender == patientAddress || 
-            accessPermissions[patientAddress][msg.sender].isActive,
-            "No access permission"
-        );
+        bool permitted = (msg.sender == patientAddress) || accessPermissions[patientAddress][msg.sender].isActive;
+        if (!permitted && address(doctorManagement) != address(0)) {
+            // Allow doctors associated with the patient via DoctorManagement
+            try doctorManagement.hasDoctorPatient(msg.sender, patientAddress) returns (bool ok) {
+                permitted = ok;
+            } catch {
+                permitted = false;
+            }
+        }
+        require(permitted, "No access permission");
 
         Patient storage patient = patients[patientAddress];
         return (
