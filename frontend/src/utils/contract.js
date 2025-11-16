@@ -32,7 +32,28 @@ export async function getContractInstance(contractKey, withSigner = true) {
   // Get ABI and address
   const abi = CONTRACT_ABIS[contractKey];
   console.debug('[Contract] DEFAULT_NETWORK_KEY', DEFAULT_NETWORK_KEY);
-  const address = getAddress(contractKey);
+  let address = null;
+
+  // Prefer dynamic discovery via EMRSystem for sub-contracts
+  try {
+    if (contractKey !== 'EMRSystem') {
+      const emr = await getContractInstance('EMRSystem', false);
+      const [hospitalAddr, doctorAddr, patientAddr] = await emr.getContractAddresses();
+      const map = {
+        HospitalManagement: hospitalAddr,
+        DoctorManagement: doctorAddr,
+        PatientManagement: patientAddr,
+      };
+      address = map[contractKey] || null;
+    }
+  } catch (e) {
+    // Fallback to static address resolution
+    console.warn('[contract.js] EMRSystem dynamic address lookup failed, falling back to config:', e?.message);
+  }
+  // If EMRSystem itself or dynamic lookup didn't set address, use config
+  if (!address) {
+    address = getAddress(contractKey);
+  }
   
   // Validate ABI
   if (!abi || abi.length === 0) {

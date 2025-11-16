@@ -52,11 +52,21 @@ async function main() {
   console.log('EMRSystem deployed to:', emrSystemAddress);
   deployments.EMRSystem = emrSystemAddress;
 
+  // 5. Deploy InsuranceManagement (references EMRSystem for role checks)
+  console.log('\n5. Deploying InsuranceManagement...');
+  const InsuranceManagement = await hre.ethers.getContractFactory('InsuranceManagement');
+  const insuranceManagement = await InsuranceManagement.deploy(emrSystemAddress);
+  await insuranceManagement.deployed();
+  const insuranceManagementAddress = insuranceManagement.address;
+  console.log('InsuranceManagement deployed to:', insuranceManagementAddress);
+  deployments.InsuranceManagement = insuranceManagementAddress;
+
   console.log('\n=== Deployment Summary ===');
   console.log('DoctorManagement:', doctorManagementAddress);
   console.log('PatientManagement:', patientManagementAddress);
   console.log('HospitalManagement:', hospitalManagementAddress);
   console.log('EMRSystem:', emrSystemAddress);
+  console.log('InsuranceManagement:', insuranceManagementAddress);
   console.log('==========================\n');
 
   // Save deployment addresses to file
@@ -85,7 +95,7 @@ async function main() {
   }
 
   const artifactsPath = path.join(__dirname, '..', 'artifacts', 'contracts');
-  const contractNames = ['DoctorManagement', 'PatientManagement', 'HospitalManagement', 'EMRSystem'];
+  const contractNames = ['DoctorManagement', 'PatientManagement', 'HospitalManagement', 'EMRSystem', 'InsuranceManagement'];
   
   contractNames.forEach(name => {
     const artifactPath = path.join(artifactsPath, `${name}.sol`, `${name}.json`);

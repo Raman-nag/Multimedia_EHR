@@ -50,8 +50,8 @@ export async function ensureCorrectNetwork(targetKey = DEFAULT_NETWORK_KEY) {
   const target = NETWORKS[targetKey];
   const current = await eth.request({ method: 'eth_chainId' });
 
-  // Accept either 0x7A69 (31337) or 0x539 (1337) as valid local chains
-  const validLocalChains = new Set(['0x7a69', '0x7A69', '0x539']);
+  // Accept common local chains: 0x7A69 (31337 Hardhat), 0x539 (1337 Ganache alt), 0x1691 (5777 Ganache)
+  const validLocalChains = new Set(['0x7a69', '0x7A69', '0x539', '0x1691']);
   if (validLocalChains.has(current)) return;
 
   // Prefer Hardhat 31337

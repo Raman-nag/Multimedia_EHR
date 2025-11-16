@@ -5,6 +5,10 @@ import DoctorManagementABI from './abis/DoctorManagement.json';
 import PatientManagementABI from './abis/PatientManagement.json';
 import HospitalManagementABI from './abis/HospitalManagement.json';
 import EMRSystemABI from './abis/EMRSystem.json';
+import InsuranceManagementABI from './abis/InsuranceManagement.json';
+
+// Default network key should be available early
+export const DEFAULT_NETWORK_KEY = 'localhost';
 
 // Log ABIs loaded
 console.log('[ContractConfig] ABIs imported:', {
@@ -14,46 +18,52 @@ console.log('[ContractConfig] ABIs imported:', {
   EMRSystem: Array.isArray(EMRSystemABI) && EMRSystemABI.length > 0,
 });
 
-// Use environment variables for addresses or fallback to deployed addresses
-const envAddr = {
-  EMRSystem: import.meta.env.VITE_EMR_SYSTEM_ADDRESS || '',
-  DoctorManagement: import.meta.env.VITE_DOCTOR_MANAGEMENT_ADDRESS || '',
-  HospitalManagement: import.meta.env.VITE_HOSPITAL_MANAGEMENT_ADDRESS || '',
-  PatientManagement: import.meta.env.VITE_PATIENT_MANAGEMENT_ADDRESS || '',
+// Helper to read from env supporting both long and short variable names
+const fromEnv = (primary, ...aliases) => {
+  for (const key of [primary, ...aliases]) {
+    const v = import.meta.env[key];
+    if (v && typeof v === 'string' && v.length > 0) return v;
+  }
+  return '0x0000000000000000000000000000000000000000';
 };
 
-// Updated deployed contract addresses from your Ganache deployment
-const deployedAddresses = {
-  EMRSystem: '0x300F2F162a5388784b02e17aF8b8fA97Ec899eAB',
-  DoctorManagement: '0x64a41250456DcC991381760559D904809996C9c1',
-  HospitalManagement: '0x4bB152636F6fE43BD81e220288Cab9abd33701aF',
-  PatientManagement: '0xBdA41BF0c9b3553BCc39b443a3dE9AE95938B16C',
-};
-
-// Final addresses used by the app - environment overrides deployed if present
+// Load addresses strictly from .env (no hardcoded fallbacks)
 const ADDRESSES = {
-  EMRSystem: envAddr.EMRSystem || deployedAddresses.EMRSystem,
-  DoctorManagement: envAddr.DoctorManagement || deployedAddresses.DoctorManagement,
-  HospitalManagement: envAddr.HospitalManagement || deployedAddresses.HospitalManagement,
-  PatientManagement: envAddr.PatientManagement || deployedAddresses.PatientManagement,
+  EMRSystem: fromEnv('VITE_EMR_SYSTEM_ADDRESS'),
+  DoctorManagement: fromEnv('VITE_DOCTOR_MANAGEMENT_ADDRESS'),
+  HospitalManagement: fromEnv('VITE_HOSPITAL_MANAGEMENT_ADDRESS'),
+  PatientManagement: fromEnv('VITE_PATIENT_MANAGEMENT_ADDRESS'),
+  InsuranceManagement: fromEnv('VITE_INSURANCE_MANAGEMENT_ADDRESS'),
 };
+
+// Constant admin account (should be first Ganache account). Configure via env.
+export const ADMIN_ADDRESS = (fromEnv('VITE_ADMIN_ADDRESS') || '').toLowerCase();
+
+// Map common network keys
+const NETWORK_KEYS = {
+  'localhost': 'localhost',
+  'Localhost': 'localhost',
+  '1337': 'localhost',
+  1337: 'localhost',
+  '31337': 'localhost',
+  31337: 'localhost',
+  '0x539': 'localhost',
+  '0x0539': 'localhost',
+  '0x7A69': 'localhost',
+  '0x7a69': 'localhost',
+  'ganache': 'localhost',
+  // Add these:
+  '5777': 'localhost',
+  5777: 'localhost',
+  '0x1691': 'localhost', // Hex for 5777
+};
+
 
 // Export for all supported network keys (chain IDs & network names)
-export const CONTRACT_ADDRESSES = {
-  localhost: ADDRESSES,
-  Localhost: ADDRESSES,
-  '31337': ADDRESSES,
-  31337: ADDRESSES,
-  '1337': ADDRESSES,
-  1337: ADDRESSES,
-  '0x7A69': ADDRESSES,
-  '0x7a69': ADDRESSES,
-  '0x539': ADDRESSES,
-  '0x0539': ADDRESSES,
-  '5777': ADDRESSES,
-  5777: ADDRESSES,
-  ganache: ADDRESSES,
-};
+export const CONTRACT_ADDRESSES = {};
+Object.keys(NETWORK_KEYS).forEach(key => {
+  CONTRACT_ADDRESSES[key] = ADDRESSES;
+});
 
 // Export ABIs directly (no async loading needed)
 export const CONTRACT_ABIS = {
@@ -61,10 +71,24 @@ export const CONTRACT_ABIS = {
   DoctorManagement: DoctorManagementABI,
   HospitalManagement: HospitalManagementABI,
   PatientManagement: PatientManagementABI,
+  InsuranceManagement: InsuranceManagementABI,
 };
 
 // Debug logs for addresses and networks loaded
-console.log('[ContractConfig] Addresses loaded:', ADDRESSES);
+// Detect active network key (best-effort) from MetaMask
+export const detectActiveNetworkKey = () => {
+  try {
+    const eth = typeof window !== 'undefined' ? window.ethereum : undefined;
+    const chainId = eth?.chainId;
+    if (chainId && CONTRACT_ADDRESSES[chainId]) return chainId;
+  } catch {}
+  // Fallback to localhost without referencing later-ordered exports
+  return 'localhost';
+};
+
+const ACTIVE_NETWORK_KEY = detectActiveNetworkKey();
+console.log('[ContractConfig] Active network key:', ACTIVE_NETWORK_KEY);
+console.log('[ContractConfig] Addresses from env:', ADDRESSES);
 console.log('[ContractConfig] Available network keys:', Object.keys(CONTRACT_ADDRESSES));
 
 export const NETWORKS = {
@@ -76,8 +100,6 @@ export const NETWORKS = {
     blockExplorer: '',
   },
 };
-
-export const DEFAULT_NETWORK_KEY = 'localhost';
 
 export const IPFS_CONFIG = {
   pinataEndpoint: 'https://api.pinata.cloud/pinning/pinFileToIPFS',
@@ -112,4 +134,5 @@ export default {
   NETWORKS,
   DEFAULT_NETWORK_KEY,
   IPFS_CONFIG,
+  ADMIN_ADDRESS,
 };

@@ -9,7 +9,18 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   WifiIcon,
-  ExclamationTriangleIcon
+  ExclamationTriangleIcon,
+  HomeIcon,
+  UserGroupIcon,
+  ChartBarIcon,
+  DocumentTextIcon,
+  MagnifyingGlassIcon,
+  HeartIcon,
+  KeyIcon,
+  CalendarIcon,
+  ClipboardDocumentListIcon,
+  PlusIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import ThemeToggle from '../common/ThemeToggle';
 import WalletConnection from '../wallet/WalletConnection';
@@ -28,25 +39,28 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
     ];
 
     switch (userRole) {
+      case 'admin':
+        return [
+          ...baseItems,
+          { name: 'Users & Roles', href: '/admin/users', icon: 'UserGroupIcon' },
+          { name: 'Analytics', href: '/admin/analytics', icon: 'ChartBarIcon' },
+          { name: 'Audit Logs', href: '/admin/audit-logs', icon: 'DocumentTextIcon' },
+          { name: 'Search', href: '/admin/search', icon: 'MagnifyingGlassIcon' }
+        ];
       case 'hospital':
         return [
           ...baseItems,
           { name: 'Doctors', href: '/hospital/doctors', icon: 'UserGroupIcon' },
           { name: 'Patients', href: '/hospital/patients', icon: 'HeartIcon' },
-          { name: 'Records', href: '/hospital/records', icon: 'DocumentTextIcon' },
-          { name: 'Analytics', href: '/hospital/analytics', icon: 'ChartBarIcon' },
-          { name: 'Settings', href: '/hospital/settings', icon: 'Cog6ToothIcon' }
+          { name: 'Analytics', href: '/hospital/analytics', icon: 'ChartBarIcon' }
         ];
       case 'doctor':
         return [
           ...baseItems,
           { name: 'My Patients', href: '/doctor/my-patients', icon: 'HeartIcon' },
           { name: 'Get Patient Details', href: '/doctor/get-patient-details', icon: 'UserCircleIcon' },
-          { name: 'Create Record', href: '/doctor/create-record', icon: 'PlusIcon' },
           { name: 'Records', href: '/doctor/records', icon: 'DocumentTextIcon' },
-          { name: 'Prescriptions', href: '/doctor/prescriptions', icon: 'ClipboardDocumentListIcon' },
-          { name: 'Schedule', href: '/doctor/schedule', icon: 'CalendarIcon' },
-          { name: 'Settings', href: '/doctor/settings', icon: 'Cog6ToothIcon' }
+          { name: 'Analytics', href: '/doctor/analytics', icon: 'ChartBarIcon' }
         ];
       case 'patient':
         return [
@@ -54,8 +68,15 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
           { name: 'Medical History', href: '/patient/medical-history', icon: 'DocumentTextIcon' },
           { name: 'Prescriptions', href: '/patient/prescriptions', icon: 'ClipboardDocumentListIcon' },
           { name: 'Grant Access', href: '/patient/manage-access', icon: 'KeyIcon' },
-          { name: 'Appointments', href: '/patient/appointments', icon: 'CalendarIcon' },
-          { name: 'Settings', href: '/patient/settings', icon: 'Cog6ToothIcon' }
+          { name: 'Insurance Requests', href: '/patient/insurance-requests', icon: 'ShieldCheckIcon' },
+        ];
+      case 'insurance':
+        return [
+          ...baseItems,
+          { name: 'Check Patient Data', href: '/insurance/check-patient-data', icon: 'DocumentTextIcon' },
+          { name: 'View Granted Patients', href: '/insurance/granted', icon: 'UserGroupIcon' },
+          { name: 'View Rejected Patients', href: '/insurance/rejected', icon: 'UserGroupIcon' },
+          { name: 'Analytics', href: '/insurance/analytics', icon: 'ChartBarIcon' }
         ];
       default:
         return baseItems;
@@ -63,6 +84,21 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
   };
 
   const navigationItems = getNavigationItems();
+
+  const iconMap = {
+    HomeIcon,
+    UserGroupIcon,
+    ChartBarIcon,
+    DocumentTextIcon,
+    MagnifyingGlassIcon,
+    HeartIcon,
+    KeyIcon,
+    CalendarIcon,
+    ClipboardDocumentListIcon,
+    Cog6ToothIcon,
+    PlusIcon,
+    ShieldCheckIcon,
+  };
 
   // Mock notifications data
   const notifications = [
@@ -138,12 +174,13 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
             <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
               <div className="flex-shrink-0 flex items-center px-4">
                 <h1 className="text-xl font-bold text-gray-900">
-                  {userRole.charAt(0).toUpperCase() + userRole.slice(1)} Dashboard
+                  {(userRole ? (userRole.charAt?.(0).toUpperCase() + userRole.slice?.(1)) : 'User')} Dashboard
                 </h1>
               </div>
               <nav className="mt-5 px-2 space-y-1">
                 {navigationItems.map((item) => {
                   const isActive = location.pathname === item.href;
+                  const Icon = iconMap[item.icon] || HomeIcon;
                   return (
                     <Link
                       key={item.name}
@@ -154,7 +191,8 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       } group flex items-center px-2 py-2 text-base font-medium rounded-md`}
                     >
-                      <span className="mr-3">{item.name}</span>
+                      <Icon className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                      <span className="mr-1">{item.name}</span>
                     </Link>
                   );
                 })}
@@ -170,24 +208,26 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
           <div className="flex flex-col h-0 flex-1">
             <div className="flex items-center h-16 flex-shrink-0 px-4 bg-white border-b border-gray-200">
               <h1 className="text-lg font-semibold text-gray-900">
-                {userRole.charAt(0).toUpperCase() + userRole.slice(1)} Dashboard
+                {(userRole ? (userRole.charAt?.(0).toUpperCase() + userRole.slice?.(1)) : 'User')} Dashboard
               </h1>
             </div>
             <div className="flex-1 flex flex-col overflow-y-auto">
               <nav className="flex-1 px-2 py-4 bg-white space-y-1">
                 {navigationItems.map((item) => {
                   const isActive = location.pathname === item.href;
+                  const Icon = iconMap[item.icon] || HomeIcon;
                   return (
                     <Link
                       key={item.name}
                       to={item.href}
                       className={`${
                         isActive
-                          ? 'bg-blue-100 text-blue-900 border-r-2 border-blue-500'
+                          ? 'bg-blue-50 text-blue-900 border-r-2 border-blue-500'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       } group flex items-center px-2 py-2 text-sm font-medium rounded-l-md transition-colors duration-200`}
                     >
-                      <span className="mr-3">{item.name}</span>
+                      <Icon className={`h-5 w-5 mr-3 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                      <span className="mr-1">{item.name}</span>
                     </Link>
                   );
                 })}
@@ -322,7 +362,7 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
                           {userProfile?.firstName} {userProfile?.lastName}
                         </div>
                         <div className="text-xs text-gray-500 font-mono">
-                          {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'No wallet'}
+                          {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : '—'}
                         </div>
                       </div>
                       <ChevronDownIcon className="ml-2 h-4 w-4 text-gray-400" />
@@ -333,13 +373,15 @@ const DashboardLayout = ({ children, userRole, userProfile, walletAddress, netwo
                 {profileOpen && (
                   <div className="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none">
                     <div className="py-1">
-                      <Link
-                        to={`/${userRole}/settings`}
-                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        <Cog6ToothIcon className="mr-3 h-4 w-4" />
-                        Settings
-                      </Link>
+                      {userRole !== 'admin' && (
+                        <Link
+                          to={`/${userRole}/settings`}
+                          className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          <Cog6ToothIcon className="mr-3 h-4 w-4" />
+                          Settings
+                        </Link>
+                      )}
                       <button
                         onClick={handleLogout}
                         className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"

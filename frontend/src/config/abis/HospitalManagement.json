@@ -361,6 +361,29 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "hospitalWallet",
+        "type": "address"
+      },
+      {
+        "internalType": "string",
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "registrationNumber",
+        "type": "string"
+      }
+    ],
+    "name": "registerHospitalByAdmin",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

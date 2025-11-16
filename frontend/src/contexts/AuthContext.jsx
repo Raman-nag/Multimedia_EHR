@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { connectWallet, getProvider, getSigner, ensureCorrectNetwork } from '../utils/web3';
-import { getHospitalContract, getDoctorContract, getPatientContract } from '../utils/contract';
+import { connectWallet, getProvider, getSigner, ensureCorrectNetwork, sendTx } from '../utils/web3';
+import { getHospitalContract, getDoctorContract, getPatientContract, getEMRSystemContract } from '../utils/contract';
+import { ADMIN_ADDRESS } from '../config/contractConfig';
 import patientService from '../services/patientService';
 import hospitalService from '../services/hospitalService';
 
@@ -83,16 +84,30 @@ export const AuthProvider = ({ children }) => {
   // Detect user role from blockchain
   const detectUserRole = async (address) => {
     try {
-      // Check if user is a registered hospital
+      // Single constant admin address model
+      if (ADMIN_ADDRESS && ADMIN_ADDRESS === address.toLowerCase()) {
+        return 'admin';
+      }
+
+      // Check EMRSystem admin roles first (immediate admin grant login)
+      try {
+        const emr = await getEMRSystemContract();
+        const hosp = await emr.hospitalAdmins(address);
+        if (hosp && hosp.wallet && hosp.active) return 'hospital';
+        const ins = await emr.insuranceAdmins(address);
+        if (ins && ins.wallet && ins.active) return 'insurance';
+        const res = await emr.researchAdmins(address);
+        if (res && res.wallet && res.active) return 'research';
+      } catch (e) {
+        // EMR lookup failed, continue with legacy checks
+      }
+
+      // Legacy: Check if user is a registered hospital via HospitalManagement
       try {
         const hospitalContract = await getHospitalContract();
-        const hospital = await hospitalContract.hospitals(address);
-        if (hospital && hospital.isActive) {
-          return 'hospital';
-        }
-      } catch (e) {
-        // Not a hospital, continue checking
-      }
+        const details = await hospitalContract.hospitals(address);
+        if (details && details.isActive) return 'hospital';
+      } catch (e) {}
 
       // Check if user is a registered doctor
       try {
@@ -154,14 +169,21 @@ export const AuthProvider = ({ children }) => {
           name: doctor.name || '',
           specialization: doctor.specialization || ''
         });
-      } else if (role === 'hospital') {
-        const hospital = await hospitalService.getHospitalDetails();
-        setUserProfile(hospital.hospital);
-        setUser({
+      } else if (role === 'hospital' || role === 'insurance' || role === 'research') {
+        // Admin-assigned roles loaded from EMRSystem profiles
+        const emr = await getEMRSystemContract();
+        let p;
+        if (role === 'hospital') p = await emr.hospitalAdmins(address);
+        if (role === 'insurance') p = await emr.insuranceAdmins(address);
+        if (role === 'research') p = await emr.researchAdmins(address);
+        const profile = {
           walletAddress: address,
-          role: 'hospital',
-          ...hospital.hospital
-        });
+          name: p?.name || '',
+          registrationNumber: p?.registrationNumber || '',
+          isActive: !!p?.active,
+        };
+        setUserProfile(profile);
+        setUser({ walletAddress: address, role, ...profile });
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -187,9 +209,9 @@ export const AuthProvider = ({ children }) => {
       const address = accounts[0];
       setWalletAddress(address);
 
-      // Detect role from blockchain
+      // Detect role from blockchain (must already exist on-chain)
       const detectedRole = await detectUserRole(address);
-      
+
       if (!detectedRole) {
         throw new Error('Wallet address not registered. Please register first.');
       }
@@ -253,8 +275,8 @@ export const AuthProvider = ({ children }) => {
         const { name, dateOfBirth, bloodGroup } = registrationData;
         await patientService.registerPatient(name, dateOfBirth, bloodGroup);
       } else if (role === 'hospital') {
-        const { name, registrationNumber } = registrationData;
-        await hospitalService.registerHospital(name, registrationNumber);
+        // Hospitals must be registered by an EHR system admin
+        throw new Error('Hospitals must be registered by the EHR system administrator. Please contact the platform admin.');
       } else if (role === 'doctor') {
         // Doctors must be added by hospital first
         throw new Error('Doctors must be registered by a hospital administrator. Please contact your hospital.');
@@ -367,7 +389,7 @@ export const AuthProvider = ({ children }) => {
       return userProfile.name || `${walletAddress?.slice(0, 6)}...${walletAddress?.slice(-4)}`;
     } else if (userRole === 'doctor') {
       return userProfile.name ? `Dr. ${userProfile.name}` : `${walletAddress?.slice(0, 6)}...${walletAddress?.slice(-4)}`;
-    } else if (userRole === 'hospital') {
+    } else if (userRole === 'hospital' || userRole === 'insurance' || userRole === 'research') {
       return userProfile.name || `${walletAddress?.slice(0, 6)}...${walletAddress?.slice(-4)}`;
     }
     return walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'User';
