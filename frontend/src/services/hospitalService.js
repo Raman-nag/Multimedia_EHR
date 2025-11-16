@@ -152,78 +152,106 @@ class HospitalService {
    */
   async getPatients() {
     try {
-      const contract = await getHospitalContract();
+      const hospital = await getHospitalContract();
       const { getSigner } = await import('../utils/web3');
       const signer = await getSigner();
       const hospitalAddress = await signer.getAddress();
-      
-      const patientAddresses = await contract.getHospitalPatients(hospitalAddress);
-      
-      // Fetch patient details
-      if (typeof getPatientContract !== 'function') {
-        throw new Error('Contract helper missing: getPatientContract. Please reload the app or check contract setup.');
-      }
-      const patientContract = await getPatientContract();
-      if (typeof getDoctorContract !== 'function') {
-        throw new Error('Contract helper missing: getDoctorContract. Please reload the app or check contract setup.');
-      }
+
+      // Build patient set from recent records created by this hospital's doctors
       const doctorContract = await getDoctorContract();
-      const patients = await Promise.all(
-        patientAddresses.map(async (address) => {
-          try {
-            const patient = await patientContract.patients(address);
-            let totalRecords = 0;
-            let lastVisitDate = null;
-            let assignedDoctorAddress = null;
-            let assignedDoctorName = '';
+      const patientContract = await getPatientContract();
 
-            try {
-              const recIds = await doctorContract.getPatientRecords(address);
-              totalRecords = Array.isArray(recIds) ? recIds.length : 0;
-              if (totalRecords > 0) {
-                const lastId = recIds[recIds.length - 1];
-                const lastRec = await doctorContract.getRecordById(lastId);
-                const ts = Number(lastRec?.timestamp || 0);
-                lastVisitDate = ts ? new Date(ts * 1000).toISOString().split('T')[0] : null;
-                assignedDoctorAddress = lastRec?.doctorAddress || null;
-                if (assignedDoctorAddress) {
-                  const d = await doctorContract.doctors(assignedDoctorAddress);
-                  assignedDoctorName = d?.name || `${assignedDoctorAddress.slice(0,6)}...${assignedDoctorAddress.slice(-4)}`;
-                }
-              }
-            } catch (e) {
-              console.warn('Error deriving patient record stats', address, e);
-            }
+      // Get hospital doctors
+      let doctors = [];
+      try { doctors = await hospital.getHospitalDoctors(hospitalAddress); } catch { doctors = []; }
+      const doctorSet = new Set((doctors || []).map(a => (a || '').toLowerCase()));
 
-            return {
-              walletAddress: address,
-              name: patient.name,
-              dateOfBirth: patient.dateOfBirth,
-              bloodGroup: patient.bloodGroup,
-              registeredDate: Number(patient.registeredDate),
-              isActive: patient.isActive,
-              totalRecords,
-              lastVisitDate,
-              assignedDoctorAddress,
-              assignedDoctorName,
-            };
-          } catch (err) {
-            console.error(`Error fetching patient ${address}:`, err);
-            return null;
+      // Scan records for patients treated by hospital doctors
+      let recordCount = 0;
+      try { recordCount = Number(await doctorContract.recordCount()); } catch { recordCount = 0; }
+      const seenPatients = new Map(); // patient => lastRecordTs and lastDoctor
+      const scanLimit = Math.min(recordCount, 2000);
+      for (let i = recordCount - 1; i >= 0 && (recordCount - 1 - i) < scanLimit; i--) {
+        try {
+          const rec = await doctorContract.getRecordById(i);
+          const d = (rec?.doctorAddress || '').toLowerCase();
+          if (!doctorSet.has(d)) continue;
+          const p = rec?.patientAddress;
+          const ts = Number(rec?.timestamp || 0);
+          if (p) {
+            const prev = seenPatients.get(p);
+            if (!prev || ts > prev.ts) seenPatients.set(p, { ts, doctor: rec?.doctorAddress });
           }
-        })
-      );
-      
+        } catch {}
+      }
+
+      const patientAddresses = Array.from(seenPatients.keys());
+      const patients = await Promise.all(patientAddresses.map(async (address) => {
+        try {
+          const patient = await patientContract.patients(address);
+          const meta = seenPatients.get(address) || { ts: 0, doctor: null };
+          let assignedDoctorName = '';
+          if (meta.doctor) {
+            try { const d = await doctorContract.doctors(meta.doctor); assignedDoctorName = d?.name || `${meta.doctor.slice(0,6)}...${meta.doctor.slice(-4)}`; } catch {}
+          }
+          const recIds = await doctorContract.getPatientRecords(address);
+          const totalRecords = Array.isArray(recIds) ? recIds.length : 0;
+          return {
+            walletAddress: address,
+            name: patient.name,
+            dateOfBirth: patient.dateOfBirth,
+            bloodGroup: patient.bloodGroup,
+            registeredDate: Number(patient.registeredDate),
+            isActive: patient.isActive,
+            totalRecords,
+            lastVisitDate: meta.ts ? new Date(meta.ts * 1000).toISOString().split('T')[0] : null,
+            assignedDoctorAddress: meta.doctor,
+            assignedDoctorName,
+          };
+        } catch (err) {
+          console.error(`Error fetching patient ${address}:`, err);
+          return null;
+        }
+      }));
+
       const validPatients = patients.filter(p => p !== null);
-      
-      return {
-        success: true,
-        patients: validPatients,
-        count: validPatients.length
-      };
+      return { success: true, patients: validPatients, count: validPatients.length };
     } catch (error) {
       console.error('Hospital Service - Get Patients Error:', error);
       throw error;
+    }
+  }
+
+  async requestAccessToPatient(patientAddress) {
+    try {
+      await ensureCorrectNetwork();
+      const patient = await getPatientContract();
+      const tx = await patient.requestAccess(patientAddress);
+      const receipt = await sendTx(Promise.resolve(tx));
+      return { success: true, receipt };
+    } catch (error) {
+      console.error('Hospital Service - Request Access Error:', error);
+      throw error;
+    }
+  }
+
+  async getAccessStatus(patientAddress, requesterAddress) {
+    try {
+      const patient = await getPatientContract();
+      const granted = await patient.hasAccess(requesterAddress, patientAddress);
+      if (granted) return 'granted';
+      let pending = false;
+      try { pending = await patient.pendingRequests(patientAddress, requesterAddress); } catch { pending = false; }
+      if (pending) return 'pending';
+      // Optional: detect recent rejection/cancel for red state by scanning last events
+      try {
+        const filt = patient.filters.AccessRequestCancelled(patientAddress, requesterAddress);
+        const logs = await patient.queryFilter(filt, -5000);
+        if (logs && logs.length > 0) return 'rejected';
+      } catch {}
+      return 'none';
+    } catch (e) {
+      return 'none';
     }
   }
 
@@ -474,6 +502,56 @@ class HospitalService {
       console.error('Hospital Service - Doctor Details With Stats Error:', error);
       throw error;
     }
+  }
+
+  /**
+   * Count total medical records authored by doctors registered under the current hospital
+   */
+  async countHospitalRecords(maxScan = 5000) {
+    const doctorsResp = await this.getDoctors();
+    const doctorAddrs = new Set((doctorsResp?.doctors || []).map(d => (d.walletAddress || d.address || '').toLowerCase()));
+    if (typeof getDoctorContract !== 'function') {
+      throw new Error('Contract helper missing: getDoctorContract. Please reload the app or check contract setup.');
+    }
+    const doctorContract = await getDoctorContract();
+    let recordCount = 0;
+    try { recordCount = Number(await doctorContract.recordCount()); } catch { recordCount = 0; }
+    let total = 0;
+    const scanLimit = Math.max(0, Math.min(maxScan, recordCount));
+    for (let i = recordCount - 1; i >= 0 && (recordCount - 1 - i) < scanLimit; i--) {
+      try {
+        const rec = await doctorContract.getRecordById(i);
+        const d = (rec?.doctorAddress || '').toLowerCase();
+        if (doctorAddrs.has(d)) total += 1;
+      } catch {}
+    }
+    return total;
+  }
+
+  /**
+   * Get live hospital metrics for analytics and dashboard
+   */
+  async getHospitalMetrics() {
+    const doctorsResp = await this.getDoctors();
+    const patientsResp = await this.getPatients();
+    const totalRecords = await this.countHospitalRecords();
+    // Access request stats (lightweight heuristic)
+    let granted = 0, pending = 0, rejected = 0;
+    const { getSigner } = await import('../utils/web3');
+    const signer = await getSigner();
+    const hospitalAddr = await signer.getAddress();
+    for (const p of (patientsResp?.patients || []).slice(0, 200)) {
+      try {
+        const s = await this.getAccessStatus(p.walletAddress, hospitalAddr);
+        if (s === 'granted') granted++; else if (s === 'pending') pending++; else if (s === 'rejected') rejected++;
+      } catch {}
+    }
+    return {
+      doctors: (doctorsResp?.doctors || []).length,
+      patients: patientsResp?.count || 0,
+      records: totalRecords,
+      access: { granted, pending, rejected }
+    };
   }
 }
 

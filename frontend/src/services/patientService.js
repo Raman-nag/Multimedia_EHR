@@ -28,7 +28,21 @@ class PatientService {
       console.error('Patient Service - Register Error:', error);
       throw error;
     }
+  }
 
+  async isActivePatient(patientAddress) {
+    try {
+      const addr = String(patientAddress || '').trim();
+      if (!addr || !addr.startsWith('0x')) return false;
+      const contract = await getPatientContract();
+      const registered = await contract.registeredPatients(addr);
+      if (!registered) return false;
+      const p = await contract.patients(addr);
+      return Boolean(p.isActive);
+    } catch (error) {
+      console.error('Patient Service - isActivePatient check error:', error);
+      return false;
+    }
   }
 
   /**
