@@ -13,6 +13,8 @@ import Button from '../common/Button';
 import SearchBar from '../common/SearchBar';
 import Modal from '../common/Modal';
 import hospitalService from '../../services/hospitalService';
+import { getProvider } from '../../utils/web3';
+import { getDoctorContract } from '../../utils/contract';
 
 const PatientList = () => {
   const [patients, setPatients] = useState([]);
@@ -23,12 +25,20 @@ const PatientList = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hospitalWallet, setHospitalWallet] = useState('');
   const [error, setError] = useState(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyRecords, setHistoryRecords] = useState([]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
+        const signer = getProvider()?.getSigner?.();
+        const addr = signer ? (await signer.getAddress()) : '';
+        if (addr) setHospitalWallet(addr);
         setLoading(true);
         setError(null);
         const resp = await hospitalService.getPatients();
@@ -60,7 +70,38 @@ const PatientList = () => {
         if (mounted) setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    const provider = getProvider();
+    const onBlock = () => {
+      if (!mounted) return;
+      // Light refresh on new block for live updates
+      (async () => {
+        try {
+          const resp = await hospitalService.getPatients();
+          const list = Array.isArray(resp.patients) ? resp.patients : [];
+          const transformed = list.map((p, idx) => ({
+            id: p.walletAddress || `pat_${idx}`,
+            firstName: (p.name || '').split(' ')[0] || (p.walletAddress ? p.walletAddress.slice(0,6) : ''),
+            lastName: (p.name || '').split(' ').slice(1).join(' '),
+            patientId: (p.walletAddress || '').slice(0,6) + '...' + (p.walletAddress || '').slice(-4),
+            email: '',
+            phone: '',
+            dateOfBirth: p.dateOfBirth || '',
+            gender: '',
+            bloodType: p.bloodGroup || '',
+            lastVisitDate: p.lastVisitDate || '',
+            assignedDoctor: p.assignedDoctorName || '',
+            doctorId: p.assignedDoctorAddress || '',
+            totalRecords: p.totalRecords || 0,
+            status: p.isActive ? 'Active' : 'Inactive',
+            emergencyContact: { name: '', relationship: '', phone: '' },
+          }));
+          setPatients(transformed);
+          setFilteredPatients(transformed);
+        } catch {}
+      })();
+    };
+    provider?.on?.('block', onBlock);
+    return () => { mounted = false; provider?.off?.('block', onBlock); };
   }, []);
 
 
@@ -152,6 +193,90 @@ const PatientList = () => {
 
   const handleViewRecords = (patient) => {
     setSelectedPatient(patient);
+  };
+
+  const loadFullHistory = async (patient) => {
+    if (!patient) return;
+    setShowHistory(true);
+    setHistoryLoading(true);
+    setHistoryError('');
+    setHistoryRecords([]);
+    try {
+      const status = accessMap[patient.id] || 'none';
+      if (status === 'none') {
+        setHistoryError('You have not sent any request for the record.');
+        return;
+      }
+      if (status === 'pending') {
+        setHistoryError('Patient has not granted access yet.');
+        return;
+      }
+      if (status !== 'granted') {
+        setHistoryError('Access not granted.');
+        return;
+      }
+      const contract = await getDoctorContract();
+      const ids = await contract.getPatientRecords(patient.id);
+      const rows = [];
+      for (const rid of ids) {
+        try {
+          const rec = await contract.getRecordById(Number(rid));
+          // Show only records by assigned doctor if available
+          if (patient.doctorId && (rec?.doctorAddress || '').toLowerCase() !== (patient.doctorId || '').toLowerCase()) continue;
+          rows.push({
+            id: Number(rid),
+            patientAddress: rec.patientAddress,
+            doctorAddress: rec.doctorAddress,
+            diagnosis: rec.diagnosis,
+            treatment: rec.treatment,
+            prescription: rec.prescription,
+            timestamp: Number(rec.timestamp) || 0,
+            date: new Date(Number(rec.timestamp || 0) * 1000).toLocaleString()
+          });
+        } catch {}
+      }
+      rows.sort((a,b) => b.timestamp - a.timestamp);
+      setHistoryRecords(rows);
+    } catch (e) {
+      setHistoryError(e?.message || 'Failed to load history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const [requestBusy, setRequestBusy] = useState('');
+  const [accessMap, setAccessMap] = useState({}); // patientId -> status
+
+  const computeStatus = async (p) => {
+    try {
+      if (!hospitalWallet) return 'none';
+      const s = await hospitalService.getAccessStatus(p.id, hospitalWallet);
+      return s;
+    } catch { return 'none'; }
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const entries = {};
+      for (const p of patients) {
+        entries[p.id] = await computeStatus(p);
+      }
+      if (active) setAccessMap(entries);
+    })();
+    return () => { active = false; };
+  }, [patients, hospitalWallet]);
+
+  const onSendRequest = async (p) => {
+    if (!p) return;
+    setRequestBusy(p.id);
+    try {
+      await hospitalService.requestAccessToPatient(p.id);
+      const s = await computeStatus(p);
+      setAccessMap(m => ({ ...m, [p.id]: s }));
+    } catch (e) {
+      setError(e?.message || 'Failed to send request');
+    } finally { setRequestBusy(''); }
   };
 
   const formatDate = (dateString) => {
@@ -303,6 +428,9 @@ const PatientList = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Records
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Access
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Actions
                   </th>
@@ -358,15 +486,34 @@ const PatientList = () => {
                         {patient.totalRecords} records
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {(() => {
+                        const s = accessMap[patient.id] || 'none';
+                        if (s === 'granted') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Granted</span>;
+                        if (s === 'pending') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>;
+                        if (s === 'rejected') return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>;
+                        return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">None</span>;
+                      })()}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleViewRecords(patient)}
-                        icon={<DocumentTextIcon className="w-4 h-4" />}
-                      >
-                        View Records
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onSendRequest(patient)}
+                          disabled={requestBusy === patient.id}
+                        >
+                          {requestBusy === patient.id ? 'Requesting…' : 'Send Request'}
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          onClick={() => handleViewRecords(patient)}
+                          icon={<DocumentTextIcon className="w-4 h-4" />}
+                        >
+                          View Records
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -528,13 +675,42 @@ const PatientList = () => {
 
             {/* Action Buttons */}
             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => loadFullHistory(selectedPatient)}>
                 View Full History
               </Button>
-              <Button variant="primary">
-                Create New Record
-              </Button>
             </div>
+
+            {/* Full History Box */}
+            {showHistory && (
+              <div className="mt-4 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
+                {historyLoading && (
+                  <div className="text-sm text-gray-500">Loading full history…</div>
+                )}
+                {!historyLoading && historyError && (
+                  <div className="text-sm text-yellow-700 bg-yellow-50 border border-yellow-200 rounded p-2">{historyError}</div>
+                )}
+                {!historyLoading && !historyError && (
+                  <div className="space-y-3">
+                    {historyRecords.length === 0 ? (
+                      <div className="text-sm text-gray-500">No medical records available for this patient.</div>
+                    ) : (
+                      historyRecords.map(r => (
+                        <div key={r.id} className="p-3 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{r.diagnosis || 'Record'}</div>
+                            <div className="text-xs text-gray-500">{r.date}</div>
+                          </div>
+                          <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">{r.treatment || ''}</div>
+                          {r.prescription && (
+                            <div className="mt-1 text-xs text-gray-500">Prescription: {r.prescription.slice(0,120)}</div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>

@@ -64,14 +64,37 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
     if (!formData.licenseNumber.trim()) {
       newErrors.licenseNumber = 'License number is required';
     }
-    // Optional fields (for display/info only)
-    if (formData.firstName.trim() || formData.lastName.trim()) {
-      if (!formData.firstName.trim()) {
-        newErrors.firstName = 'First name is required if last name is provided';
-      }
-      if (!formData.lastName.trim()) {
-        newErrors.lastName = 'Last name is required if first name is provided';
-      }
+    // Name validation: minimum 2 non-whitespace characters (accept letters, numbers, underscores, hyphens, spaces, etc.)
+    const first = formData.firstName?.trim() || '';
+    const last = formData.lastName?.trim() || '';
+    if (!first) {
+      newErrors.firstName = 'First name is required';
+    } else if (first.length < 2) {
+      newErrors.firstName = 'Enter at least 2 characters (letters, spaces, hyphens)';
+    }
+    if (!last) {
+      newErrors.lastName = 'Last name is required';
+    } else if (last.length < 2) {
+      newErrors.lastName = 'Enter at least 2 characters (letters, spaces, hyphens)';
+    }
+
+    // Email validation
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) {
+      newErrors.email = 'Enter a valid email address';
+    }
+
+    // Phone validation (basic, 7-15 digits)
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+    } else if (!/^\+?[0-9\-\s()]{7,15}$/.test(formData.phone.trim())) {
+      newErrors.phone = 'Enter a valid phone number';
+    }
+
+    // Specialty required
+    if (!formData.specialty) {
+      newErrors.specialty = 'Specialty is required';
     }
 
     setErrors(newErrors);
@@ -182,6 +205,7 @@ const AddDoctor = ({ onDoctorAdded, onCancel }) => {
             name={name}
             value={formData[name] ?? ''}
             onChange={handleInputChange}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); } }}
             placeholder={placeholder}
             className={`
               block w-full rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500
