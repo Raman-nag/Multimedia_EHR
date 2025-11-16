@@ -100,6 +100,36 @@ contract HospitalManagement is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @dev Admin-only registration for hospitals. Allows the platform owner to
+     *      create a hospital entry without requiring self-registration.
+     */
+    function registerHospitalByAdmin(
+        address hospitalWallet,
+        string memory name,
+        string memory registrationNumber
+    ) external onlyOwner nonReentrant {
+        require(hospitalWallet != address(0), "Invalid hospital address");
+        require(!registeredHospitals[hospitalWallet], "Hospital already registered");
+        require(bytes(name).length > 0, "Name cannot be empty");
+        require(bytes(registrationNumber).length > 0, "Registration number cannot be empty");
+
+        hospitals[hospitalWallet] = Hospital({
+            name: name,
+            registrationNumber: registrationNumber,
+            walletAddress: hospitalWallet,
+            isActive: true,
+            timestamp: block.timestamp,
+            doctors: new address[](0),
+            patients: new address[](0)
+        });
+
+        registeredHospitals[hospitalWallet] = true;
+        hospitalAddresses.push(hospitalWallet);
+
+        emit HospitalRegistered(hospitalWallet, name, registrationNumber);
+    }
+
+    /**
      * @dev Add a doctor to the hospital
      */
     function addDoctor(address doctorAddress, string memory licenseNumber) 
